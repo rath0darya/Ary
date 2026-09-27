@@ -286,6 +286,7 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
             "title": title or series_id,
             "url": urljoin(source_url, "/title/" + series_id),
             "image": image,
+            "content_type": content_type,
         })
     return list(found.values())
 
@@ -416,7 +417,33 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
         start = html.find(marker)
         escaped = start >= 0
     if start < 0:
-        raise RuntimeError("No episode catalogue was found on the ARY title page.")
+        # Movies/telefilms and some special titles expose one direct videoSource
+        # instead of an "episodes" array. Represent that source as a single
+        # playable local catalogue item so the same player/download path works.
+        sources = re.findall(
+            r'["\\\']videoSource["\\\']\\s*:\\s*["\\\'](https?://[^"\\\']+)["\\\']',
+            html,
+            re.I,
+        )
+        if not sources:
+            sources = re.findall(r'https?://[^"\\\']+?\.m3u8(?:\?[^"\\\']*)?', html, re.I)
+        if sources:
+            unique_source = next((x for x in sources if ".m3u8" in x.lower()), sources[0])
+            with CACHE_LOCK:
+                CACHE[key] = [{
+                    "id": series_id + ":movie",
+                    "number": 1,
+                    "title": base.get("title") or series_id,
+                    "date": None,
+                    "thumbnail": base.get("image"),
+                    "stream": unique_source,
+                    "description": "",
+                    "next_episode_id": None,
+                    "raw": {"content_type": base.get("content_type", "Movie")},
+                }]
+            _save_catalogue_store()
+            return CACHE[key]
+        raise RuntimeError("No episode or direct video source was found on the ARY title page.")
 
     array_start = html.find("[", start)
     catalogue_text = html[array_start:]
