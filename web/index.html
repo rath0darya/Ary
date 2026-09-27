@@ -31,148 +31,29 @@ h1{font-size:24px;margin:0}.sub{color:var(--muted);font-size:13px;margin-top:4px
 </head>
 <body>
 <div class="wrap">
-<header>
- <div class="brand"><div class="logo">ARY</div><div><h1>Episode Watcher</h1><div class="sub">HLS inspector · automatic best-quality downloads</div></div></div>
- <div class="actions"><button onclick="refreshEpisodes()">Refresh</button><button onclick="health()">System</button></div>
-</header>
-
-<section class="hero">
- <h2>Dar-E-Nijaat</h2>
- <p>The catalogue is loaded dynamically from the ARY service. Each download automatically selects the highest HLS video resolution advertised by the source and preserves the original streams with FFmpeg copy mode.</p>
-</section>
-
-<div class="toolbar">
- <input id="search" class="search" placeholder="Search episode..." oninput="render()">
- <div id="count" class="count">Loading…</div>
+<header><div class="brand"><div class="logo">ARY</div><div><h1>ARY Watcher</h1><div class="sub">All series · all episodes · HLS inspection</div></div></div><div class="actions"><button onclick="loadSeries(true)">Refresh</button><button onclick="health()">System</button></div></header>
+<section class="hero"><h2>ARY Plus Catalogue</h2><p>Browse discovered series, open their complete episode lists, inspect available HLS variants, and download the highest advertised quality.</p></section>
+<div class="toolbar"><input id="search" class="search" placeholder="Search series..." oninput="renderSeries()"><div id="count" class="count">Loading…</div></div>
+<div id="grid" class="grid"><div class="loading">Discovering series…</div></div>
 </div>
-
-<div id="grid" class="grid"><div class="loading">Loading episodes…</div></div>
-</div>
-
-<div id="modal" class="modal" onclick="if(event.target===this)closeModal()">
- <div class="dialog">
-  <div class="dialoghead"><div><h3 id="modalTitle">Stream details</h3><div id="modalSub" class="sub"></div></div><button class="close" onclick="closeModal()">×</button></div>
-  <div id="modalBody"></div>
- </div>
-</div>
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()"><div class="dialog"><div class="dialoghead"><div><h3 id="modalTitle"></h3><div id="modalSub" class="sub"></div></div><button class="close" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
 <div id="toast" class="toast"></div>
-
 <script>
-let episodes=[];
-const jobs=new Map();
-
-function esc(v){
- return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-}
-function bytes(n){
- if(!n)return "0 B";
- const u=["B","KB","MB","GB","TB"];let i=0,x=n;
- while(x>=1024&&i<u.length-1){x/=1024;i++}
- return x.toFixed(i?1:0)+" "+u[i];
-}
-function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),3500)}
-
-async function get(url){
- const r=await fetch(url);let d={};
- try{d=await r.json()}catch{}
- if(!r.ok||!d.ok)throw new Error(d.error||("HTTP "+r.status));
- return d;
-}
-
-async function loadEpisodes(refresh=false){
- document.getElementById("grid").innerHTML='<div class="loading">Loading episodes…</div>';
- try{
-  const d=await get("/api/episodes"+(refresh?"?refresh=1":""));
-  episodes=d.episodes||[];
-  render();
- }catch(e){
-  document.getElementById("grid").innerHTML='<div class="empty">'+esc(e.message)+'</div>';
-  toast(e.message);
- }
-}
-
-function render(){
- const q=document.getElementById("search").value.trim().toLowerCase();
- const list=episodes.filter(e=>JSON.stringify(e).toLowerCase().includes(q));
- document.getElementById("count").textContent=list.length+" episode"+(list.length===1?"":"s");
- const grid=document.getElementById("grid");
- if(!list.length){grid.innerHTML='<div class="empty">No matching episodes.</div>';return}
- grid.innerHTML=list.map(card).join("");
-}
-
-function card(e){
- const id=esc(e.id);
- const n=esc(e.number??"");
- const title=esc(e.title||("Episode "+n));
- return '<article class="card" id="card-'+id+'">'+
-  '<div class="cardtop"><div><div class="ep">Episode '+n+'</div><div class="id">'+id+'</div></div><span class="badge">ARY Plus</span></div>'+
-  '<div class="meta"><span>HLS</span><span>Best available</span></div>'+
-  '<button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+','+JSON.stringify(e.number??"")+','+JSON.stringify(e.title||"")+',this)">Download Best Quality</button>'+
-  '<button class="inspect" onclick="inspect('+JSON.stringify(e.id)+','+JSON.stringify(title)+')">Inspect Stream</button>'+
-  '<div class="job" id="job-'+id+'"></div>'+
- '</article>';
-}
-
-async function downloadEpisode(id,number,title,button){
- button.disabled=true;button.textContent="Selecting best quality…";
- const jobBox=document.getElementById("job-"+id);jobBox.classList.add("show");
- try{
-  const d=await get("/api/download?episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(number)+"&title="+encodeURIComponent(title));
-  const job=d.job;jobs.set(job.id,{button,box:jobBox});
-  button.textContent="Downloading "+(job.quality||"best")+"…";
-  monitor(job.id);
- }catch(e){
-  button.disabled=false;button.textContent="Download Best Quality";jobBox.innerHTML=esc(e.message);toast(e.message);
- }
-}
-
-async function monitor(id){
- const ctx=jobs.get(id);if(!ctx)return;
- try{
-  const d=await get("/api/download/"+encodeURIComponent(id));const j=d.job;
-  let pct=typeof j.percent==="number"?j.percent:0;
-  ctx.box.innerHTML='<div><strong>'+esc(j.quality||"best")+'</strong> · '+esc(j.resolution||"")+'</div>'+
-   '<div class="bar"><div class="fill" style="width:'+Math.min(100,pct)+'%"></div></div>'+
-   '<div class="muted">'+esc(j.state)+' · '+bytes(j.size||0)+(j.speed?" · "+esc(j.speed):"")+'</div>'+
-   (j.filename?'<div class="small muted">'+esc(j.filename)+'</div>':"")+
-   (j.error?'<div style="color:#ff6b73;margin-top:6px">'+esc(j.error)+'</div>':"");
-  if(j.state==="completed"){
-   ctx.button.disabled=false;ctx.button.textContent="Download Best Quality";toast("Download complete: "+j.filename);
-   return;
-  }
-  if(j.state==="error"){
-   ctx.button.disabled=false;ctx.button.textContent="Download Best Quality";toast(j.error||"Download failed");
-   return;
-  }
-  setTimeout(()=>monitor(id),1200);
- }catch(e){setTimeout(()=>monitor(id),2000)}
-}
-
-async function inspect(id,title){
- document.getElementById("modalTitle").textContent=title||"Stream details";
- document.getElementById("modalSub").textContent="Inspecting HLS master playlist…";
- document.getElementById("modalBody").innerHTML='<div class="loading">Loading stream information…</div>';
- document.getElementById("modal").classList.add("open");
- try{
-  const d=await get("/api/stream-info?episode="+encodeURIComponent(id));
-  const s=d.stream||{};const best=s.best;
-  document.getElementById("modalSub").textContent=s.master_url||"";
-  let html="";
-  if(best)html+='<div class="variant best"><div class="row"><strong>Selected automatically</strong><strong>'+esc((best.height||"?")+"p")+'</strong></div><div class="muted">'+esc((best.width||"?")+"×"+(best.height||"?"))+' · '+esc(best.bandwidth?bytes(best.bandwidth)+"/s":"bandwidth unavailable")+' · '+esc(best.codecs||"codec unavailable")+'</div></div>';
-  html+='<h4>Advertised variants</h4>';
-  html+=(s.variants||[]).map(v=>'<div class="variant"><div class="row"><strong>'+esc((v.height||"?")+"p")+'</strong><span>'+esc((v.width||"?")+"×"+(v.height||"?"))+'</span></div><div class="muted">'+esc(v.bandwidth?bytes(v.bandwidth)+"/s":"—")+' · avg '+esc(v.average_bandwidth?bytes(v.average_bandwidth)+"/s":"—")+' · '+esc(v.codecs||"—")+'</div><div class="small muted">'+esc(v.uri||"")+'</div></div>').join("");
-  document.getElementById("modalBody").innerHTML=html||'<div class="empty">No HLS variants were found.</div>';
- }catch(e){document.getElementById("modalBody").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
-}
+let series=[],currentSeries=null,episodes=[],jobs=new Map();
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+function bytes(n){if(!n)return"0 B";const u=["B","KB","MB","GB"],i=Math.min(3,Math.floor(Math.log(n)/Math.log(1024)));return(n/Math.pow(1024,i)).toFixed(i?1:0)+" "+u[i];}
+function toast(x){const e=document.getElementById("toast");e.textContent=x;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),3200)}
+async function get(u){const r=await fetch(u);let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw Error(d.error||("HTTP "+r.status));return d}
+async function loadSeries(refresh=false){document.getElementById("grid").innerHTML='<div class="loading">Discovering series…</div>';try{series=(await get("/api/series"+(refresh?"?refresh=1":""))).series||[];renderSeries()}catch(e){document.getElementById("grid").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
+function renderSeries(){const q=document.getElementById("search").value.toLowerCase().trim();const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));document.getElementById("count").textContent=list.length+" series";document.getElementById("grid").innerHTML=list.length?list.map(x=>'<article class="card"><div class="cardtop"><div><div class="ep">'+esc(x.title)+'</div><div class="id">'+esc(x.id)+'</div></div><span class="badge">Series</span></div><button class="download" onclick="openSeries('+JSON.stringify(x.id)+','+JSON.stringify(x.title)+')">View Episodes</button></article>').join(""):'<div class="empty">No matching series.</div>'}
+async function openSeries(id,title){currentSeries={id,title};document.getElementById("modalTitle").textContent=title;document.getElementById("modalSub").textContent="Loading episodes…";document.getElementById("modalBody").innerHTML='<div class="loading">Loading complete episode catalogue…</div>';document.getElementById("modal").classList.add("open");try{episodes=(await get("/api/episodes?series="+encodeURIComponent(id))).episodes||[];renderEpisodes()}catch(e){document.getElementById("modalBody").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
+function renderEpisodes(){document.getElementById("modalSub").textContent=episodes.length+" episodes";document.getElementById("modalBody").innerHTML=episodes.map(e=>'<div class="variant"><div class="row"><strong>Episode '+esc(e.number??"")+'</strong><span class="muted">'+esc(e.title||"")+'</span></div><div class="small muted">'+esc(e.id)+'</div><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+','+JSON.stringify(e.number??"")+','+JSON.stringify(e.title||"")+')">Download Best Quality</button><button class="inspect" onclick="inspect('+JSON.stringify(e.id)+','+JSON.stringify(e.title||"")+')">Inspect HLS</button><div class="job" id="job-'+esc(e.id)+'"></div></div>').join("")||'<div class="empty">No episodes returned.</div>'}
+async function downloadEpisode(id,number,title){const box=document.getElementById("job-"+id);box.classList.add("show");box.innerHTML="Selecting best quality…";try{const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(number)+"&title="+encodeURIComponent(title));jobs.set(d.job.id,box);monitor(d.job.id)}catch(e){box.innerHTML=esc(e.message)}}
+async function monitor(id){const box=jobs.get(id);if(!box)return;try{const j=(await get("/api/download/"+id)).job;box.innerHTML='<strong>'+esc(j.quality||"best")+'</strong> · '+esc(j.resolution||"")+'<div class="bar"><div class="fill" style="width:'+Math.min(100,j.percent||0)+'%"></div></div><div class="muted">'+esc(j.state)+' · '+bytes(j.size||0)+(j.speed?" · "+esc(j.speed):"")+'</div>'+(j.filename?'<div class="small muted">'+esc(j.filename)+'</div>':"")+(j.error?'<div style="color:#ff6870">'+esc(j.error)+'</div>':"");if(j.state!=="completed"&&j.state!=="error")setTimeout(()=>monitor(id),1200)}catch(e){setTimeout(()=>monitor(id),2000)}}
+async function inspect(id,title){document.getElementById("modalTitle").textContent=title;document.getElementById("modalSub").textContent="HLS inspection";document.getElementById("modalBody").innerHTML='<div class="loading">Inspecting…</div>';try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)),s=d.stream;document.getElementById("modalBody").innerHTML='<button onclick="openSeries('+JSON.stringify(currentSeries.id)+','+JSON.stringify(currentSeries.title)+')">← Back to episodes</button><div class="variant best"><strong>Automatically selected: '+esc(s.best?(s.best.height+"p"):"Unavailable")+'</strong><div class="muted">'+esc(s.best?(s.best.width+"×"+s.best.height):"")+' · '+esc(s.best&&s.best.bandwidth?bytes(s.best.bandwidth)+"/s":"")+'</div></div>'+((s.variants||[]).map(v=>'<div class="variant"><div class="row"><strong>'+esc((v.height||"?")+"p")+'</strong><span>'+esc((v.width||"?")+"×"+(v.height||"?"))+'</span></div><div class="muted">'+esc(v.bandwidth?bytes(v.bandwidth)+"/s":"—")+' · avg '+esc(v.average_bandwidth?bytes(v.average_bandwidth)+"/s":"—")+' · '+esc(v.codecs||"—")+'</div><div class="small muted">'+esc(v.uri||"")+'</div></div>').join(""))}catch(e){document.getElementById("modalBody").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
 function closeModal(){document.getElementById("modal").classList.remove("open")}
-function refreshEpisodes(){loadEpisodes(true)}
-async function health(){
- try{
-  const d=await get("/api/health");
-  toast("Server OK · FFmpeg: "+(d.ffmpeg?"yes":"no")+" · FFprobe: "+(d.ffprobe?"yes":"no"));
- }catch(e){toast(e.message)}
-}
-loadEpisodes();
+async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing")+" · FFprobe "+(d.ffprobe?"ready":"missing"))}catch(e){toast(e.message)}}
+loadSeries();
 </script>
 </body>
 </html>
