@@ -182,10 +182,10 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
         context = text[max(0, match.start() - 700):min(len(text), match.end() + 1200)]
-        if not re.search(r'\\bSeries\\b', context, re.I):
+        if not re.search(r'\bSeries\b', context, re.I):
             continue
-        title = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
-        title = re.sub(r"\\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
+        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
         found.setdefault(series_id, {
             "id": series_id,
             "title": title or series_id,
@@ -577,7 +577,7 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\\nStopping ARY Watcher...", flush=True)
+        print("\nStopping ARY Watcher...", flush=True)
     finally:
         server.server_close()
 
