@@ -462,6 +462,24 @@ def series_details(series_id: str, force: bool = False) -> dict[str, Any]:
 
     genres = json_array("genres") or nearby("Genres") or nearby("Genre")
     cast = json_array("cast") or json_array("actors") or nearby("Cast") or nearby("Starring") or nearby("Actors")
+
+    # ARY distinguishes normal serials (Series), TV/reality programming
+    # (Show), movies and telefilms on title pages. Keep that distinction in
+    # the local catalogue instead of collapsing every episodic title into
+    # "Series".
+    type_context = page[:120000]
+    detected_type = base.get("content_type") or "Series"
+    if re.search(r"\b\d+\s+Episodes?\s+Show\b", type_context, re.I):
+        detected_type = "Show"
+    elif re.search(r"\b\d+\s+Episodes?\s+Telefilm\b", type_context, re.I):
+        detected_type = "Telefilm"
+    elif re.search(r"\b\d+\s+Episodes?\s+Series\b", type_context, re.I):
+        detected_type = "Series"
+    elif re.search(r"\bTelefilms?\b", " ".join(genres), re.I):
+        detected_type = "Telefilm"
+    elif re.search(r"\bTV Shows?\b|\bReality\b|\bGame Show\b", " ".join(genres), re.I):
+        detected_type = "Show"
+
     clean_title = re.sub(r"\s*\|.*$", "", title).strip()
     result = {
         **base,
@@ -472,6 +490,7 @@ def series_details(series_id: str, force: bool = False) -> dict[str, Any]:
         "genres": genres,
         "description": description,
         "cast": cast,
+        "content_type": detected_type,
     }
     with CACHE_LOCK:
         CACHE.setdefault("details", {})[series_id] = result
