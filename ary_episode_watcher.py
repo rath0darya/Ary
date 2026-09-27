@@ -408,7 +408,8 @@ def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, r
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-headers", "Referer: " + ARY_WEB + "/\\r\\nOrigin: " + ARY_WEB + "\\r\\n",
+        "-headers", "Referer: " + ARY_WEB + "/\r\nOrigin: " + ARY_WEB + "\r\n",
+        "-i", stream_url,
         "-c", "copy",
         "-movflags", "+faststart",
         str(output),
