@@ -156,7 +156,16 @@ async function loadSeries(refresh=false){try{series=(await get("/api/series"+(re
 function setBackground(el,url){el.style.backgroundImage=url?"url("+JSON.stringify(imageSrc(url))+")":"none"}
 function setHero(s){setBackground(document.getElementById("hero"),s.image);document.getElementById("heroTitle").textContent=s.title||s.id;document.getElementById("heroMeta").textContent=labelType(s)+" · "+(s.year||"ARY+")}
 async function openSeries(id){currentSeries=series.find(x=>x.id===id)||{id,title:id,url:official(id)};document.getElementById("detail").classList.add("open");document.body.style.overflow="hidden";document.getElementById("detailTitle").textContent=currentSeries.title;document.getElementById("detailType").textContent=labelType(currentSeries);document.getElementById("detailDesc").textContent="Loading title information…";document.getElementById("detailCast").textContent="";document.getElementById("episodeGrid").innerHTML='<div class="loading">Loading episodes / video…</div>';document.getElementById("official").href=currentSeries.url||official(id);try{const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries={...currentSeries,...d.series};document.getElementById("detailTitle").textContent=currentSeries.title;document.getElementById("detailType").textContent=labelType(currentSeries);document.getElementById("detailDesc").textContent=currentSeries.description||"Explore the discovered catalogue.";document.getElementById("detailCast").textContent=currentSeries.cast?.length?"Cast: "+currentSeries.cast.join(", "):"";setBackground(document.getElementById("detailHero"),currentSeries.backdrop||currentSeries.image);document.getElementById("detailFacts").innerHTML=[currentSeries.year,genresOf(currentSeries).join(" · "),currentSeries.id].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");document.getElementById("official").href=currentSeries.url||official(id)}catch(e){document.getElementById("detailDesc").textContent="Unable to load title details: "+e.message;toast("Title details failed: "+e.message)}await loadEpisodesThen(()=>{document.getElementById("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);renderEpisodes()})}
-async function loadEpisodesThen(done){try{episodes=(await get("/api/episodes?series="+encodeURIComponent(currentSeries.id))).episodes||[];buildSeasons();done&&done()}catch(e){document.getElementById("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>}}
+async function loadEpisodesThen(done){
+  try{
+    const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id));
+    episodes=d.episodes||[];
+    buildSeasons();
+    if(done)done();
+  }catch(e){
+    document.getElementById("episodeGrid").textContent=e.message;
+  }
+}
 function seasonOf(e){const r=e.raw||{};return String(r.seasonNumber??r.season_number??r.season??"1")}
 function buildSeasons(){const map={};episodes.forEach(e=>(map[seasonOf(e)]??=[]).push(e));const keys=Object.keys(map).sort((a,b)=>Number(a)-Number(b));document.getElementById("seasonBar").innerHTML=keys.length>1?keys.map((s,i)=>'<button class="season '+(!i?'active':'')+'" onclick="selectSeason('+JSON.stringify(s)+',this)">Season '+esc(s)+'</button>').join(""):"";seasonEpisodes=map[keys[0]]||episodes}
 function selectSeason(s,b){document.querySelectorAll(".season").forEach(x=>x.classList.remove("active"));b.classList.add("active");seasonEpisodes=episodes.filter(e=>seasonOf(e)===s);renderEpisodes()}
