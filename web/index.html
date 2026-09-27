@@ -62,7 +62,7 @@ function toast(s){const x=document.getElementById("toast");x.textContent=s;x.cla
 async function get(u){const r=await fetch(u);let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw Error(d.error||("HTTP "+r.status));return d}
 function go(id){document.getElementById(id)?.scrollIntoView({behavior:"smooth"});closeDetail();closePlayer()}
 function home(){closeDetail();closePlayer();scrollTo({top:0,behavior:"smooth"})}
-function poster(x,extra=""){const img=x.image||x.thumbnail||"";return '<button class="card" onclick="openSeries('+JSON.stringify(x.id)+')"><div class="poster">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+extra+'</div><div class="card-name">'+esc(x.title)+'</div><div class="card-meta">'+esc(x.year||"Series")+'</div></button>'}
+function poster(x,extra=""){const img=x.image||x.thumbnail||"";return '<button type="button" class="card series-card" data-series-id="'+esc(x.id)+'"><div class="poster">'+(img?'<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="'+esc(img)+'" alt="" onerror="this.closest(\\'.poster\\').classList.add(\\'image-missing\\');this.remove()">':"")+extra+'</div><div class="card-name">'+esc(x.title||x.id)+'</div><div class="card-meta">'+esc(x.year||"Series")+'</div></button>'}
 function renderHome(){const q=document.getElementById("search").value.toLowerCase().trim();const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));document.getElementById("seriesRow").innerHTML=list.length?list.map(x=>poster(x)).join(""):'<div class="empty">No matching titles.</div>';document.getElementById("recentRow").innerHTML=series.slice(0,14).map(x=>poster(x)).join("")||'<div class="empty">No series discovered.</div>';renderContinue()}
 function renderContinue(){const box=document.getElementById("continueSection"),row=document.getElementById("continueRow"),w=getWatch(),items=Object.values(w).filter(x=>Date.now()-x.updated<1000*60*60*24*90).sort((a,b)=>b.updated-a.updated);if(!items.length){box.style.display="none";return}box.style.display="block";row.innerHTML=items.slice(0,12).map(x=>{const p=x.duration?Math.min(100,(x.position/x.duration)*100):0;return '<button type="button" class="card" onclick="resumeEncoded(\''+encodeURIComponent(JSON.stringify(x))+'\')"><div class="poster">'+(x.seriesImage?'<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="'+esc(x.seriesImage)+'" alt="" onerror="this.style.display=\'none\'">':"")+'<div class="progress"><i style="width:'+p+'%"></i></div></div><div class="card-name">'+esc(x.seriesTitle)+'</div><div class="card-meta">EP '+esc(x.episodeNumber)+" · "+esc(x.episodeTitle||"Continue")+'</div></button>'}).join("")}
 function resumeEncoded(v){try{resume(JSON.parse(decodeURIComponent(v)))}catch(e){toast("Unable to resume this item.")}}
@@ -213,7 +213,13 @@ async function pollDownload(id,box,b){try{const j=(await get("/api/download/"+id
 function heroPlay(){if(series[0])openSeries(series[0].id)}
 function toggleFullscreen(){const p=document.getElementById("player");if(document.fullscreenElement)document.exitFullscreen();else p.requestFullscreen?.()}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
-window.addEventListener("error",function(e){console.error("ARY UI error:",e.error||e.message)});window.addEventListener("unhandledrejection",function(e){console.error("ARY UI promise error:",e.reason)});loadSeries();renderContinue();
+document.addEventListener("click",function(ev){
+  const card=ev.target.closest(".series-card");
+  if(card){ev.preventDefault();const id=card.getAttribute("data-series-id");if(id)openSeries(id);return}
+});
+window.addEventListener("error",function(e){console.error("ARY UI error:",e.error||e.message)});
+window.addEventListener("unhandledrejection",function(e){console.error("ARY UI promise error:",e.reason)});
+loadSeries();renderContinue();
 </script>
 </body>
 </html>
