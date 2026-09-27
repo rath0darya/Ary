@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import html
 import re
 import shutil
 import subprocess
@@ -266,21 +267,39 @@ def series_details(series_id: str) -> dict[str, Any]:
     except Exception:
         return {**base, "year": None, "genres": [], "description": "", "cast": []}
 
-    title = _html_meta(page, "og:title") or base.get("title") or series_id
-    description = _html_meta(page, "og:description") or _html_meta(page, "description") or ""
-    image = _html_meta(page, "og:image") or base.get("image")
+    def clean_meta(value: str | None) -> str:
+        value = html.unescape(str(value or ""))
+        value = re.sub(r"<[^>]+>", " ", value)
+        value = re.sub(r"\\s+", " ", value).strip()
+        if not value or any(token in value for token in ('"image":', '"trailer":', '"@type":', '":["')):
+            return ""
+        return value
+
+    title = clean_meta(_html_meta(page, "og:title")) or base.get("title") or series_id
+    description = clean_meta(_html_meta(page, "og:description")) or clean_meta(_html_meta(page, "description"))
+    image = clean_meta(_html_meta(page, "og:image")) or base.get("image")
+    if image and not str(image).startswith(("http://", "https://")):
+        image = base.get("image")
     year_match = re.search(r"\b(19\d{2}|20\d{2})\b", page)
     year = int(year_match.group(1)) if year_match else None
+
+    def json_array(label: str) -> list[str]:
+        match = re.search(r'["\\]'+re.escape(label)+r'["\\]\s*:\s*\\?\[([^\\]]*)\\]?', page, re.I | re.S)
+        if not match:
+            return []
+        return [html.unescape(x).strip() for x in re.findall(r'["\\]([^"\\]+)["\\]', match.group(1)) if x.strip()][:12]
 
     def nearby(label: str) -> list[str]:
         match = re.search(r"(?is)" + re.escape(label) + r"\s*[:\-]?\s*([^<]{0,300})", page)
         if not match:
             return []
-        value = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", match.group(1))).strip()
+        value = clean_meta(match.group(1))
+        if not value:
+            return []
         return [x.strip() for x in re.split(r"[,|•]", value) if x.strip()][:12]
 
-    genres = nearby("Genres") or nearby("Genre")
-    cast = nearby("Cast") or nearby("Starring") or nearby("Actors")
+    genres = json_array("genres") or nearby("Genres") or nearby("Genre")
+    cast = json_array("cast") or json_array("actors") or nearby("Cast") or nearby("Starring") or nearby("Actors")
     clean_title = re.sub(r"\s*\|.*$", "", title).strip()
     return {
         **base,
