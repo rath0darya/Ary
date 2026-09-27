@@ -11,7 +11,9 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 - Downloads with FFmpeg stream copy; no quality-lowering re-encode.
 - Verifies the resulting MP4 with ffprobe.
 - Background download jobs with progress/status API.
-- Netflix/Prime-style streaming catalogue UI with horizontal content rows, series detail pages, episode cards, and an in-page HLS player.
+- Netflix/Prime-style home catalogue with All, Drama, Telefilms, Shows, Movies, Comedy, Romance, Action, Sports, News and metadata-driven genre rows.
+- Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
+- Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
 - Clickable ARY Plus fallback links for every discovered series.
 - Browser HLS playback using HLS.js when the source permits browser playback.
 - No external AI/API service.
@@ -53,6 +55,8 @@ For a custom port:
 - GET /api/stream-info?series=<series-id>&episode=<episode-id>
 - GET /api/download?series=<series-id>&episode=<episode-id>&number=<n>&title=<title>
 - GET /api/download/<job-id>
+- GET /api/catalogue/metadata?start=1
+- GET /api/catalogue/metadata
 
 The download endpoint intentionally has no quality parameter. The server chooses the highest HLS variant advertised by the source.
 
