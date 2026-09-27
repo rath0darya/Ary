@@ -173,37 +173,17 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
 
 def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
-    patterns = [
-        r'href=["\\\']/title/([A-Za-z0-9]+)["\\\'][^>]*>(.*?)</a>',
-        r'href=["\\\']/title/([A-Za-z0-9]+)["\\\']',
-    ]
-    for pattern in patterns:
-        for match in re.finditer(pattern, text, re.I | re.S):
-            series_id = match.group(1)
-            title = re.sub(r"<[^>]+>", " ", match.group(2)).strip() if match.lastindex and match.lastindex > 1 else ""
-            title = re.sub(r"\\s+", " ", title)
-            if series_id not in found:
-                found[series_id] = {
-                    "id": series_id,
-                    "title": title or series_id,
-                    "url": urljoin(source_url, "/title/" + series_id),
-                }
-    return list(found.values())
-
-
-def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
-    found: dict[str, dict[str, Any]] = {}
     for match in re.finditer(
         r'href=["\\\']/?title/([A-Za-z0-9]+)["\\\']([^>]*)>(.*?)</a>',
         text,
         re.I | re.S,
     ):
-        series_id, attrs, anchor = match.group(1), match.group(2), match.group(3)
+        series_id, anchor = match.group(1), match.group(3)
         context = text[max(0, match.start()-250):min(len(text), match.end()+500)]
-        if not re.search(r'\\bSeries\\b', context, re.I):
+        if not re.search(r'\bSeries\b', context, re.I):
             continue
-        title = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
-        title = re.sub(r"\\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
+        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
         found.setdefault(series_id, {
             "id": series_id,
             "title": title or series_id,
