@@ -75,12 +75,133 @@ function buildSeasons(){const map={};episodes.forEach(e=>(map[seasonOf(e)]??=[])
 function selectSeason(s,b){document.querySelectorAll(".season").forEach(x=>x.classList.remove("active"));b.classList.add("active");seasonEpisodes=episodes.filter(e=>seasonOf(e)===s);renderEpisodes()}
 function renderEpisodes(){const q=document.getElementById("episodeSearch").value.toLowerCase().trim();const list=seasonEpisodes.filter(e=>(String(e.number)+" "+e.title).toLowerCase().includes(q));document.getElementById("episodeGrid").innerHTML=list.length?list.map(e=>'<article class="ep"><div class="ep-thumb">'+(e.thumbnail?'<img loading="lazy" src="'+esc(e.thumbnail)+'" alt="">':"")+'<span class="ep-num">EP '+esc(e.number??"")+'</span></div><div class="ep-body"><div class="ep-title">'+esc(e.title)+'</div><div class="ep-date">'+esc(e.date||"")+'</div><div class="ep-actions"><button class="watch" onclick="playEpisodeById('+JSON.stringify(e.id)+')">▶ Stream</button><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+',this)">↓ Download HD</button></div><div class="fallback"><a target="_blank" rel="noopener" href="'+official(currentSeries.id)+'">Official ARY+</a></div><div id="status-'+esc(e.id)+'" class="status">Stream and Download are independent.</div></div></article>').join(""):'<div class="empty">No matching episodes.</div>'}
 function playEpisodeById(id){const e=episodes.find(x=>x.id===id);if(e)playEpisode(e)}
-async function playEpisode(e,position=0){currentEpisode=e;currentIndex=episodes.findIndex(x=>x.id===e.id);document.getElementById("player").classList.add("open");document.body.style.overflow="hidden";document.getElementById("nextToast").style.display="none";document.getElementById("playerTitle").textContent=(currentSeries?.title||"Series")+" · EP "+(e.number??"")+" · "+(e.title||"Episode");const v=document.getElementById("video");destroyPlayer();document.getElementById("quality").innerHTML='<option>Loading quality…</option>';document.getElementById("playerNote").textContent="Loading HLS stream…";try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));variants=(d.stream?.variants||[]).filter(x=>x.uri).sort((a,b)=>(a.height||0)-(b.height||0));const source=d.stream?.source||d.stream?.best?.uri;if(!source)throw Error("No playable HLS source returned.");fillQualities();attachStream(source,position);v.ontimeupdate=()=>{if(v.currentTime>2&&Math.floor(v.currentTime)%5===0)saveWatch(e,v.currentTime)};v.onended=()=>{saveWatch(e,v.duration);if(currentIndex<episodes.length-1){document.getElementById("nextToast").style.display="block";setTimeout(()=>{if(document.getElementById("player").classList.contains("open"))playNext()},3500)}}}catch(err){document.getElementById("playerNote").textContent=err.message+" · Open ARY+ if browser playback is blocked."}}
-function fillQualities(){const q=document.getElementById("quality");const levels=variants;const labels=levels.map(x=>x.height?x.height+"p"+(x.width?" · "+x.width+"×"+x.height:""):"Auto");q.innerHTML=levels.length?'<option value="-1">Auto</option>'+labels.slice().reverse().map((x,i)=>'<option value="'+(levels.length-1-i)+'">'+esc(x)+'</option>').join(""):'<option value="-1">Auto</option>';q.value="-1"}
-function attachStream(source,position=0){const v=document.getElementById("video");if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,backBufferLength:30});hls.loadSource(source);hls.attachMedia(v);hls.on(Hls.Events.MANIFEST_PARSED,()=>{document.getElementById("playerNote").textContent="HLS ready · Auto quality";v.currentTime=position||0;v.play().catch(()=>{document.getElementById("playerNote").textContent="Tap Play to start playback."})});hls.on(Hls.Events.LEVEL_SWITCHED,(_,data)=>{const level=hls.levels[data.level];if(level)document.getElementById("playerNote").textContent=(level.height?level.height+"p":"Auto")+" · HLS"});hls.on(Hls.Events.ERROR,(_,data)=>{if(!data.fatal)return;let msg="HLS playback error";if(data.type==="networkError")msg="HLS network error — retrying…";else if(data.type==="mediaError")msg="HLS media error — recovering…";document.getElementById("playerNote").textContent=msg;if(data.type==="networkError")hls.startLoad();else if(data.type==="mediaError")hls.recoverMediaError();else{toast("Playback failed. Try Open ARY+.");destroyPlayer()}})}else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=source;v.onloadedmetadata=()=>{document.getElementById("playerNote").textContent="Native HLS playback";v.currentTime=position||0;v.play().catch(()=>{document.getElementById("playerNote").textContent="Tap Play to start playback."})}}else throw Error("This browser cannot play HLS.")}
-function changeQuality(){if(!hls)return;const value=Number(document.getElementById("quality").value);if(value===-1){hls.currentLevel=-1;document.getElementById("playerNote").textContent="Auto quality";return}if(value>=0&&value<hls.levels.length){hls.currentLevel=value;const level=hls.levels[value];document.getElementById("playerNote").textContent=(level?.height||"")+"p · Switching quality…"}}
-function destroyPlayer(){if(hls){hls.destroy();hls=null}const v=document.getElementById("video");v.pause();v.removeAttribute("src");v.load()}
-function downloadCurrentEpisode(){if(currentEpisode){const b=document.createElement("button");downloadEpisode(currentEpisode.id,b)}
+async function playEpisode(e,position=0){
+  currentEpisode=e;
+  currentIndex=episodes.findIndex(function(x){return x.id===e.id});
+  document.getElementById("player").classList.add("open");
+  document.body.style.overflow="hidden";
+  document.getElementById("nextToast").style.display="none";
+  document.getElementById("playerTitle").textContent=(currentSeries?currentSeries.title:"Series")+" · EP "+(e.number||"")+" · "+(e.title||"Episode");
+  var v=document.getElementById("video");
+  destroyPlayer();
+  document.getElementById("quality").innerHTML='<option value="-1">Loading quality…</option>';
+  document.getElementById("playerNote").textContent="Loading HLS stream…";
+  try{
+    var d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
+    variants=(d.stream&&d.stream.variants?d.stream.variants:[]).filter(function(x){return x&&x.uri}).sort(function(a,b){return (a.height||0)-(b.height||0)});
+    var source=d.stream&&(d.stream.source||(d.stream.best&&d.stream.best.uri));
+    if(!source)throw Error("No playable HLS source returned.");
+    fillQualities();
+    attachStream(source,position);
+    v.ontimeupdate=function(){
+      if(v.currentTime>2&&Math.floor(v.currentTime)%5===0)saveWatch(e,v.currentTime);
+    };
+    v.onended=function(){
+      saveWatch(e,v.duration);
+      if(currentIndex<episodes.length-1){
+        document.getElementById("nextToast").style.display="block";
+        setTimeout(function(){
+          if(document.getElementById("player").classList.contains("open"))playNext();
+        },3500);
+      }
+    };
+  }catch(err){
+    document.getElementById("playerNote").textContent=err.message+" · Open ARY+ if browser playback is blocked.";
+  }
+}
+function fillQualities(){
+  var q=document.getElementById("quality");
+  if(!variants.length){
+    q.innerHTML='<option value="-1">Auto</option>';
+    return;
+  }
+  q.innerHTML='<option value="-1">Auto</option>';
+  variants.slice().reverse().forEach(function(level){
+    var o=document.createElement("option");
+    o.value=String(variants.indexOf(level));
+    o.textContent=(level.height?level.height+"p":"Unknown")+" · "+(level.width?level.width+"×"+level.height:"");
+    q.appendChild(o);
+  });
+  q.value="-1";
+}
+function attachStream(source,position){
+  var v=document.getElementById("video");
+  if(window.Hls&&Hls.isSupported()){
+    hls=new Hls({
+      enableWorker:true,
+      lowLatencyMode:false,
+      capLevelToPlayerSize:true,
+      backBufferLength:30
+    });
+    hls.on(Hls.Events.ERROR,function(_,data){
+      if(!data||!data.fatal)return;
+      if(data.type===Hls.ErrorTypes.NETWORK_ERROR){
+        document.getElementById("playerNote").textContent="HLS network error — retrying…";
+        hls.startLoad();
+      }else if(data.type===Hls.ErrorTypes.MEDIA_ERROR){
+        document.getElementById("playerNote").textContent="HLS media error — recovering…";
+        hls.recoverMediaError();
+      }else{
+        document.getElementById("playerNote").textContent="HLS playback failed. Try Open ARY+.";
+      }
+    });
+    hls.on(Hls.Events.MANIFEST_PARSED,function(){
+      document.getElementById("playerNote").textContent="HLS ready · Auto quality";
+      if(position>0)v.currentTime=position;
+      v.play().catch(function(){
+        document.getElementById("playerNote").textContent="Tap Play to start playback.";
+      });
+    });
+    hls.on(Hls.Events.LEVEL_SWITCHED,function(_,data){
+      var level=hls.levels[data.level];
+      if(level&&hls.currentLevel!==-1){
+        document.getElementById("playerNote").textContent=(level.height||"")+"p · HLS";
+      }
+    });
+    hls.loadSource(source);
+    hls.attachMedia(v);
+  }else if(v.canPlayType("application/vnd.apple.mpegurl")){
+    v.src=source;
+    v.onloadedmetadata=function(){
+      document.getElementById("playerNote").textContent="Native HLS playback";
+      if(position>0)v.currentTime=position;
+      v.play().catch(function(){
+        document.getElementById("playerNote").textContent="Tap Play to start playback.";
+      });
+    };
+  }else{
+    throw Error("This browser cannot play HLS.");
+  }
+}
+function changeQuality(){
+  if(!hls||!hls.levels)return;
+  var value=Number(document.getElementById("quality").value);
+  if(value===-1){
+    hls.currentLevel=-1;
+    document.getElementById("playerNote").textContent="Auto quality";
+    return;
+  }
+  if(value>=0&&value<hls.levels.length){
+    hls.currentLevel=value;
+    var level=hls.levels[value];
+    document.getElementById("playerNote").textContent=(level&&level.height?level.height:"")+"p · Switching quality…";
+  }
+}
+function destroyPlayer(){
+  if(hls){
+    hls.destroy();
+    hls=null;
+  }
+  var v=document.getElementById("video");
+  v.pause();
+  v.removeAttribute("src");
+  v.load();
+}
+function downloadCurrentEpisode(){
+  if(currentEpisode){
+    var b=document.createElement("button");
+    downloadEpisode(currentEpisode.id,b);
+  }
 }
 function playNext(){document.getElementById("nextToast").style.display="none";if(currentIndex<episodes.length-1)playEpisode(episodes[currentIndex+1])}
 function closePlayer(){const v=document.getElementById("video");saveWatch(currentEpisode,v.currentTime||0);v.pause();if(hls){hls.destroy();hls=null}v.removeAttribute("src");v.load();document.getElementById("player").classList.remove("open");document.getElementById("nextToast").style.display="none";if(!document.getElementById("detail").classList.contains("open"))document.body.style.overflow=""}
