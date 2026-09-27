@@ -7,139 +7,87 @@
 <title>ARY+ Stream</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3"></script>
 <style>
-:root{--bg:#050505;--surface:#101010;--surface2:#171717;--text:#f5f5f5;--muted:#a5a5a5;--line:#292929;--red:#e50914;--red2:#ff3340}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}
-button,input{font:inherit}button{cursor:pointer}.topbar{position:sticky;top:0;z-index:20;height:68px;padding:0 4vw;display:flex;align-items:center;gap:30px;background:linear-gradient(#050505f5,#050505d9,transparent)}
-.brand{font-size:25px;font-weight:950;letter-spacing:-1px;color:#fff}.brand span{color:var(--red)}
-.nav{display:flex;gap:22px;color:#cfcfcf;font-size:14px}.nav button{background:none;border:0;color:inherit;padding:0}.nav button:hover{color:#fff}
-.top-actions{margin-left:auto;display:flex;gap:10px;align-items:center}.search{width:min(300px,42vw);background:#111d;border:1px solid #ffffff20;color:#fff;border-radius:6px;padding:9px 12px;outline:0}.iconbtn{background:#151515;border:1px solid #292929;color:#fff;border-radius:6px;padding:9px 12px}
-.hero{min-height:470px;margin-top:-68px;display:flex;align-items:end;padding:80px 4vw 55px;background:linear-gradient(90deg,#050505 0%,#050505dc 35%,#05050545 70%,#050505 100%),linear-gradient(0deg,#050505 0%,transparent 45%),radial-gradient(circle at 75% 25%,#68141b 0,#141414 35%,#050505 72%)}
-.hero-content{max-width:650px}.eyebrow{font-size:13px;color:#d8d8d8;margin-bottom:12px}.hero h1{font-size:clamp(36px,6vw,70px);line-height:.98;margin:0 0 17px;letter-spacing:-2px}.hero p{color:#d0d0d0;line-height:1.6;max-width:590px}.hero-actions{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
-.primary,.secondary{border:0;border-radius:5px;padding:12px 21px;font-weight:800}.primary{background:#fff;color:#000}.secondary{background:#3a3a3acc;color:#fff}.primary:hover{background:#ddd}.secondary:hover{background:#555}
-main{padding:0 4vw 60px}.section{margin:28px 0 38px}.section-title{font-size:20px;font-weight:850;margin:0 0 13px}.row{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 13px;scrollbar-width:thin}.row::-webkit-scrollbar{height:5px}.row::-webkit-scrollbar-thumb{background:#333;border-radius:9px}
-.poster{flex:0 0 185px;border:0;background:transparent;color:#fff;text-align:left;padding:0;position:relative}.poster-img{height:270px;border-radius:5px;overflow:hidden;background:linear-gradient(145deg,#292929,#101010);border:1px solid #252525;position:relative}.poster-img img{width:100%;height:100%;display:block;object-fit:cover}.poster-grad{position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#000c)}.poster-label{position:absolute;left:10px;right:10px;bottom:10px;font-size:14px;font-weight:800;text-shadow:0 2px 6px #000}.poster:hover .poster-img{outline:2px solid #fff;transform:translateY(-2px);transition:.16s}.poster-name{font-size:14px;font-weight:750;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.poster-meta{font-size:11px;color:var(--muted);margin-top:3px}
-.empty,.loading{padding:50px 15px;text-align:center;color:var(--muted)}.error{color:#ff6972}
-.detail{display:none;position:fixed;inset:0;background:#050505;z-index:30;overflow:auto}.detail.open{display:block}.detail-hero{min-height:380px;padding:80px 5vw 40px;display:flex;align-items:end;background:linear-gradient(0deg,#050505 3%,transparent 60%),linear-gradient(90deg,#050505 0%,#050505dd 35%,#05050555 75%),radial-gradient(circle at 75% 20%,#68141b,#101010 45%,#050505 75%)}.detail-copy{max-width:800px}.close{position:absolute;right:25px;top:22px;background:#202020dd;border:0;color:#fff;border-radius:50%;width:40px;height:40px;font-size:25px}.detail h2{font-size:clamp(32px,5vw,60px);margin:0 0 12px}.detail-meta{color:#bbb;font-size:13px;margin-bottom:14px}.detail-desc{color:#ccc;line-height:1.55;max-width:760px}.detail-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
-.episodes{padding:10px 5vw 60px}.episode-search{width:100%;max-width:440px;background:#151515;border:1px solid #292929;color:#fff;border-radius:5px;padding:11px 13px;margin:10px 0 18px;outline:0}.episode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}.episode{background:#101010;border:1px solid #222;border-radius:7px;overflow:hidden}.episode-thumb{height:150px;background:#1b1b1b;position:relative}.episode-thumb img{width:100%;height:100%;object-fit:cover}.ep-num{position:absolute;left:10px;top:10px;background:#000c;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:850}.episode-body{padding:13px}.episode-title{font-weight:800;line-height:1.3}.episode-desc{color:#999;font-size:12px;line-height:1.45;margin-top:6px;min-height:34px}.episode-actions{display:flex;gap:7px;margin-top:12px}.episode-actions button,.episode-actions a{flex:1;text-align:center;text-decoration:none;border:0;border-radius:4px;padding:9px 8px;font-size:12px;font-weight:800}.watch{background:#fff;color:#000}.download{background:#282828;color:#fff}.official{background:#171717;color:#ccc;border:1px solid #333!important}.status{font-size:11px;color:#999;margin-top:9px;min-height:14px}
-.player{display:none;position:fixed;inset:0;background:#000;z-index:50}.player.open{display:flex;flex-direction:column}.player-top{height:62px;display:flex;align-items:center;padding:0 20px;gap:15px;background:linear-gradient(#000c,transparent)}.player-title{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-top .close{position:static;margin-left:auto}.video-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000}.video-wrap video{width:100%;height:auto;max-height:calc(100vh - 100px);background:#000}.player-note{padding:10px 20px;color:#999;font-size:12px;text-align:center;background:#080808}.quality{margin-left:auto;color:#bbb;font-size:12px}
-.toast{position:fixed;right:18px;bottom:18px;background:#1c1c1c;border:1px solid #333;padding:12px 15px;border-radius:6px;z-index:80;display:none}.toast.show{display:block}
-@media(max-width:700px){.topbar{padding:0 15px;height:60px}.nav{display:none}.search{width:42vw}.hero{margin-top:-60px;padding:100px 15px 38px;min-height:500px}.hero h1{letter-spacing:-1px}.main{padding:0 15px}.section{margin:25px 0}.poster{flex-basis:145px}.poster-img{height:215px}.detail-hero{padding:100px 20px 30px;min-height:450px}.episodes{padding:5px 20px 40px}.episode-grid{grid-template-columns:1fr}.episode-thumb{height:190px}}
+:root{--bg:#050505;--panel:#111;--panel2:#181818;--text:#fff;--muted:#a8a8a8;--line:#292929;--accent:#e50914}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}
+.top{position:fixed;z-index:30;top:0;left:0;right:0;height:68px;padding:0 4vw;display:flex;align-items:center;gap:30px;background:linear-gradient(#050505f5,#050505b8,transparent)}.logo{font-size:25px;font-weight:950}.logo b{color:var(--accent)}.nav{display:flex;gap:22px}.nav button{border:0;background:none;color:#ddd}.nav button:hover{color:#fff}.actions{margin-left:auto;display:flex;gap:9px}.search{width:min(300px,42vw);background:#111d;border:1px solid #ffffff20;color:#fff;padding:9px 12px;border-radius:5px;outline:0}.btn{border:0;border-radius:5px;padding:11px 16px;font-weight:800}.white{background:#fff;color:#000}.dark{background:#2a2a2acc;color:#fff}.hero{min-height:690px;padding:150px 4vw 95px;display:flex;align-items:end;background-color:#090909;background-size:cover;background-position:center;position:relative}.hero:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#050505 0%,#050505e6 30%,#05050555 72%,#050505 100%),linear-gradient(0deg,#050505 2%,transparent 45%,#05050566)}.hero-copy{position:relative;z-index:1;max-width:700px}.eyebrow{font-size:12px;letter-spacing:2px;color:#ccc;font-weight:800}.hero h1{font-size:clamp(42px,7vw,78px);line-height:.95;margin:12px 0 17px;letter-spacing:-3px}.meta{color:#ccc;font-size:14px;margin:10px 0}.desc{max-width:620px;color:#d0d0d0;line-height:1.65}.actions{align-items:center}.hero-actions{display:flex;gap:9px;margin-top:23px;flex-wrap:wrap}
+main{padding:0 4vw 70px}.section{margin:34px 0}.title{font-size:21px;margin:0 0 14px}.row{display:flex;gap:12px;overflow-x:auto;padding:3px 2px 15px}.row::-webkit-scrollbar{height:5px}.row::-webkit-scrollbar-thumb{background:#333;border-radius:9px}.card{flex:0 0 185px;background:none;color:#fff;border:0;text-align:left;padding:0}.poster{height:275px;background:#181818;border-radius:6px;overflow:hidden;position:relative;border:1px solid #252525}.poster img{width:100%;height:100%;object-fit:cover;display:block}.poster:after{content:"";position:absolute;inset:48% 0 0;background:linear-gradient(transparent,#000e)}.card:hover .poster{outline:2px solid #fff;transform:translateY(-3px);transition:.16s}.card-name{font-weight:800;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.card-meta{font-size:11px;color:#999;margin-top:4px}.empty,.loading{text-align:center;color:#999;padding:45px}
+.continue .card{flex-basis:270px}.continue .poster{height:152px}.progress{position:absolute;left:0;right:0;bottom:0;height:4px;background:#333;z-index:2}.progress i{display:block;height:100%;background:var(--accent)}
+.detail{display:none;position:fixed;inset:0;z-index:40;background:#050505;overflow:auto}.detail.open{display:block}.detail-hero{min-height:590px;padding:105px 5vw 45px;display:flex;align-items:end;background-size:cover;background-position:center;position:relative}.detail-hero:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#050505 0%,#050505df 32%,#05050555 80%),linear-gradient(0deg,#050505 2%,transparent 55%)}.detail-copy{position:relative;z-index:1;max-width:800px}.detail h2{font-size:clamp(38px,6vw,70px);line-height:.98;margin:12px 0}.close{position:absolute;right:24px;top:22px;z-index:3;width:42px;height:42px;border:0;border-radius:50%;background:#222;color:#fff;font-size:25px}.facts{display:flex;gap:8px;flex-wrap:wrap;color:#ccc}.pill{padding:5px 9px;background:#202020;border-radius:4px;font-size:12px}.cast{color:#bbb;margin-top:15px;line-height:1.6}.detail-body{padding:0 5vw 60px}.seasonbar{display:flex;gap:8px;overflow:auto;padding:10px 0 18px}.season{background:#191919;color:#ddd;border:1px solid #333;border-radius:5px;padding:9px 13px}.season.active{background:#fff;color:#000}.ep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:17px}.ep{background:#101010;border:1px solid #242424;border-radius:7px;overflow:hidden}.ep-thumb{height:165px;background:#1b1b1b;position:relative}.ep-thumb img{width:100%;height:100%;object-fit:cover}.ep-num{position:absolute;top:10px;left:10px;background:#000d;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:900}.ep-body{padding:13px}.ep-title{font-weight:800}.ep-date{font-size:12px;color:#888;margin-top:5px}.ep-actions{display:flex;gap:7px;margin-top:12px}.ep-actions button{flex:1;border:0;border-radius:4px;padding:9px;font-size:12px;font-weight:850}.watch{background:#fff;color:#000}.download{background:#292929;color:#fff}.status{font-size:11px;color:#aaa;min-height:16px;margin-top:8px}
+.player{display:none;position:fixed;inset:0;z-index:100;background:#000}.player.open{display:flex;flex-direction:column}.player-head{height:65px;display:flex;align-items:center;gap:10px;padding:0 18px;background:linear-gradient(#000,transparent)}.player-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-tools{margin-left:auto;display:flex;gap:7px;align-items:center}.quality{background:#161616;color:#fff;border:1px solid #333;padding:8px;border-radius:4px}.player-btn{background:#181818;border:1px solid #333;color:#fff;border-radius:4px;padding:8px 11px}.video-area{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}.video-area video{width:100%;height:100%;max-height:calc(100vh - 115px);object-fit:contain}.player-foot{height:50px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px;background:#070707}.next-toast{position:absolute;right:20px;bottom:70px;background:#171717ee;border:1px solid #333;border-radius:7px;padding:13px;display:none}.next-toast button{margin-left:10px}.toast{position:fixed;right:18px;bottom:18px;z-index:150;background:#191919;border:1px solid #333;padding:12px 15px;border-radius:6px;display:none}.toast.show{display:block}
+@media(max-width:700px){.top{height:58px;padding:0 15px}.nav{display:none}.hero{min-height:620px;padding:130px 15px 65px}.hero h1{letter-spacing:-2px}.hero-copy{max-width:100%}.search{width:43vw}.main{padding:0 15px}.card{flex-basis:145px}.poster{height:215px}.continue .card{flex-basis:235px}.continue .poster{height:132px}.detail-hero{min-height:590px;padding:120px 20px 35px}.detail-body{padding:0 20px 45px}.ep-grid{grid-template-columns:1fr}.player-head{height:58px}}
 </style>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">ARY<span>+</span></div>
-  <nav class="nav"><button onclick="home()">Home</button><button onclick="scrollToSection('seriesSection')">Series</button><button onclick="loadSeries(true)">Refresh</button></nav>
-  <div class="top-actions"><input id="search" class="search" placeholder="Search titles..." oninput="renderHome()"><button class="iconbtn" onclick="health()">⌁</button></div>
+<header class="top">
+  <div class="logo">ARY<b>+</b></div>
+  <nav class="nav"><button onclick="home()">Home</button><button onclick="go('series')">Series</button><button onclick="loadSeries(true)">Refresh</button></nav>
+  <div class="actions"><input id="search" class="search" placeholder="Search titles..." oninput="renderHome()"><button class="player-btn" onclick="health()">⌁</button></div>
 </header>
 
-<section class="hero">
-  <div class="hero-content">
-    <div class="eyebrow">STREAMING CATALOGUE</div>
-    <h1 id="heroTitle">ARY+ Stream</h1>
-    <p id="heroText">Discover ARY series and episodes in a streaming-style interface. Open an episode, play the available HLS stream, or download the highest advertised quality when you are authorized to do so.</p>
-    <div class="hero-actions"><button class="primary" onclick="randomPlay()">▶ Play Something</button><button class="secondary" onclick="scrollToSection('seriesSection')">Browse Series</button></div>
+<section id="hero" class="hero">
+  <div class="hero-copy">
+    <div class="eyebrow">ARY+ STREAMING</div><h1 id="heroTitle">Discover ARY+</h1><div id="heroMeta" class="meta"></div><p id="heroDesc" class="desc">Browse the discovered ARY catalogue, open a full title page, choose a season and episode, watch HLS, download the best available quality, and continue where you left off.</p>
+    <div class="hero-actions"><button class="btn white" onclick="heroPlay()">▶ Play</button><button class="btn dark" onclick="go('series')">Browse Series</button></div>
   </div>
 </section>
 
 <main>
-  <section class="section"><h2 class="section-title">Recently discovered</h2><div id="recentRow" class="row"><div class="loading">Loading…</div></div></section>
-  <section id="seriesSection" class="section"><h2 class="section-title">All Series</h2><div id="seriesRow" class="row"><div class="loading">Discovering catalogue…</div></div></section>
+<section id="continueSection" class="section continue" style="display:none"><h2 class="title">Continue Watching</h2><div id="continueRow" class="row"></div></section>
+<section class="section"><h2 class="title">Recently Discovered</h2><div id="recentRow" class="row"><div class="loading">Loading…</div></div></section>
+<section id="series" class="section"><h2 class="title">All Series</h2><div id="seriesRow" class="row"><div class="loading">Discovering catalogue…</div></div></section>
 </main>
 
 <section id="detail" class="detail">
-  <button class="close" onclick="closeDetail()">×</button>
-  <div class="detail-hero"><div class="detail-copy">
-    <div class="eyebrow">SERIES</div><h2 id="detailTitle"></h2><div id="detailMeta" class="detail-meta"></div><div id="detailDesc" class="detail-desc"></div>
-    <div class="detail-actions"><button id="detailPlay" class="primary">▶ Play Latest</button><a id="detailOfficial" class="secondary" target="_blank" rel="noopener">Open ARY Plus ↗</a></div>
-  </div></div>
-  <div class="episodes"><h2 class="section-title">Episodes</h2><input id="episodeSearch" class="episode-search" placeholder="Search episodes..." oninput="renderEpisodes()"><div id="episodeGrid" class="episode-grid"><div class="loading">Loading episodes…</div></div></div>
+<button class="close" onclick="closeDetail()">×</button>
+<div id="detailHero" class="detail-hero"><div class="detail-copy"><div class="eyebrow">SERIES</div><h2 id="detailTitle"></h2><div id="detailFacts" class="facts"></div><p id="detailDesc" class="desc"></p><div id="detailCast" class="cast"></div><div class="hero-actions"><button id="detailPlay" class="btn white">▶ Play Latest</button><a id="official" class="btn dark" target="_blank" rel="noopener">Open ARY+ ↗</a></div></div></div>
+<div class="detail-body"><h2 class="title">Episodes</h2><input id="episodeSearch" class="search" style="width:100%;max-width:460px;background:#151515" placeholder="Search episodes..." oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading episodes…</div></div></div>
 </section>
 
 <section id="player" class="player">
-  <div class="player-top"><div id="playerTitle" class="player-title"></div><div id="playerQuality" class="quality"></div><button class="close" onclick="closePlayer()">×</button></div>
-  <div class="video-wrap"><video id="video" controls playsinline preload="metadata"></video></div>
-  <div id="playerNote" class="player-note">Streaming the selected ARY HLS source. If browser playback is blocked by the source, use “Open ARY Plus”.</div>
+<div class="player-head"><strong id="playerTitle"></strong><div class="player-tools"><select id="quality" class="quality" onchange="changeQuality()"></select><button class="player-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button><button class="player-btn" onclick="closePlayer()">×</button></div></div>
+<div class="video-area"><video id="video" controls playsinline preload="metadata"></video></div>
+<div class="player-foot"><span id="playerNote">Automatic next episode is enabled.</span></div>
+<div id="nextToast" class="next-toast">Next episode <button class="btn white" onclick="playNext()">Play</button></div>
 </section>
 <div id="toast" class="toast"></div>
 
 <script>
-let series=[],currentSeries=null,episodes=[],hls=null,currentEpisode=null;
+let series=[],currentSeries=null,episodes=[],seasonEpisodes=[],currentEpisode=null,currentIndex=-1,variants=[],hls=null;
+const WATCH_KEY="ary_stream_continue_v1";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const official=id=>"https://aryplus.tv/title/"+encodeURIComponent(id);
-function toast(x){const e=document.getElementById("toast");e.textContent=x;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),3000)}
+const getWatch=()=>{try{return JSON.parse(localStorage.getItem(WATCH_KEY)||"{}")}catch{return{}}};
+const saveWatch=(e,position=0)=>{if(!currentSeries||!e)return;const w=getWatch();w[currentSeries.id+"|"+e.id]={seriesId:currentSeries.id,seriesTitle:currentSeries.title,seriesImage:currentSeries.image,episodeId:e.id,episodeNumber:e.number,episodeTitle:e.title,position,duration:document.getElementById("video").duration||0,updated:Date.now()};localStorage.setItem(WATCH_KEY,JSON.stringify(w));renderContinue()};
+function toast(s){const x=document.getElementById("toast");x.textContent=s;x.classList.add("show");setTimeout(()=>x.classList.remove("show"),3000)}
 async function get(u){const r=await fetch(u);let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw Error(d.error||("HTTP "+r.status));return d}
-function scrollToSection(id){document.getElementById(id)?.scrollIntoView({behavior:"smooth"})}
-function home(){closeDetail();closePlayer();window.scrollTo({top:0,behavior:"smooth"})}
-async function loadSeries(refresh=false){
- try{series=(await get("/api/series"+(refresh?"?refresh=1":""))).series||[];renderHome()}
- catch(e){document.getElementById("seriesRow").innerHTML='<div class="empty error">'+esc(e.message)+"</div>"}
-}
-function card(x){
- const img=x.image||x.thumbnail||"";
- return '<button class="poster" onclick="openSeries('+JSON.stringify(x.id)+')"><div class="poster-img">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+'<div class="poster-grad"></div><div class="poster-label">'+esc(x.title)+'</div></div><div class="poster-name">'+esc(x.title)+'</div><div class="poster-meta">Series · '+esc(x.id)+'</div></button>';
-}
-function renderHome(){
- const q=document.getElementById("search").value.toLowerCase().trim();
- const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));
- document.getElementById("seriesRow").innerHTML=list.length?list.map(card).join(""):'<div class="empty">No matching titles.</div>';
- document.getElementById("recentRow").innerHTML=series.slice(0,12).map(card).join("")||'<div class="empty">No series discovered.</div>';
-}
-async function openSeries(id){
- currentSeries=series.find(x=>x.id===id)||{id,title:id};
- document.getElementById("detailTitle").textContent=currentSeries.title;
- document.getElementById("detailMeta").textContent="Series · ARY Plus";
- document.getElementById("detailDesc").textContent="Loading episode catalogue…";
- document.getElementById("detailOfficial").href=currentSeries.url||official(id);
- document.getElementById("episodeGrid").innerHTML='<div class="loading">Loading complete episode catalogue…</div>';
- document.getElementById("detail").classList.add("open");
- document.body.style.overflow="hidden";
- try{
-   episodes=(await get("/api/episodes?series="+encodeURIComponent(id))).episodes||[];
-   document.getElementById("detailDesc").textContent=episodes.length+" episodes available in the discovered catalogue.";
-   document.getElementById("detailPlay").onclick=()=>episodes.length&&playEpisode(episodes[0]);
-   renderEpisodes();
- }catch(e){document.getElementById("detailDesc").textContent=e.message;document.getElementById("episodeGrid").innerHTML='<div class="empty error">'+esc(e.message)+"</div>"}
-}
-function renderEpisodes(){
- const q=document.getElementById("episodeSearch").value.toLowerCase().trim();
- const list=episodes.filter(e=>(String(e.number??"")+" "+(e.title||"")).toLowerCase().includes(q));
- document.getElementById("episodeGrid").innerHTML=list.length?list.map(e=>{
-   const img=e.thumbnail||"";
-   return '<article class="episode"><div class="episode-thumb">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+'<span class="ep-num">EP '+esc(e.number??"")+'</span></div><div class="episode-body"><div class="episode-title">'+esc(e.title||("Episode "+(e.number??"")))+"</div><div class="episode-desc">"+esc(e.date||"")+'</div><div class="episode-actions"><button class="watch" onclick="playEpisodeById('+JSON.stringify(e.id)+')">▶ Watch</button><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+',this)">↓ Download</button><a class="official" target="_blank" rel="noopener" href="'+esc(currentSeries.url||official(currentSeries.id))+'">ARY+</a></div><div id="status-'+esc(e.id)+'" class="status"></div></div></article>'
- }).join(""):'<div class="empty">No matching episodes.</div>';
-}
+function go(id){document.getElementById(id)?.scrollIntoView({behavior:"smooth"});closeDetail();closePlayer()}
+function home(){closeDetail();closePlayer();scrollTo({top:0,behavior:"smooth"})}
+function poster(x,extra=""){const img=x.image||x.thumbnail||"";return '<button class="card" onclick="openSeries('+JSON.stringify(x.id)+')"><div class="poster">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+extra+'</div><div class="card-name">'+esc(x.title)+'</div><div class="card-meta">'+esc(x.year||"Series")+'</div></button>'}
+function renderHome(){const q=document.getElementById("search").value.toLowerCase().trim();const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));document.getElementById("seriesRow").innerHTML=list.length?list.map(x=>poster(x)).join(""):'<div class="empty">No matching titles.</div>';document.getElementById("recentRow").innerHTML=series.slice(0,14).map(x=>poster(x)).join("")||'<div class="empty">No series discovered.</div>';renderContinue()}
+function renderContinue(){const box=document.getElementById("continueSection"),row=document.getElementById("continueRow"),w=getWatch(),items=Object.values(w).filter(x=>Date.now()-x.updated<1000*60*60*24*90).sort((a,b)=>b.updated-a.updated);if(!items.length){box.style.display="none";return}box.style.display="block";row.innerHTML=items.slice(0,12).map(x=>{const p=x.duration?Math.min(100,(x.position/x.duration)*100):0;return '<button class="card" onclick="resume('+JSON.stringify(x)+')"><div class="poster">'+(x.seriesImage?'<img loading="lazy" src="'+esc(x.seriesImage)+'" alt="">':"")+'<div class="progress"><i style="width:'+p+'%"></i></div></div><div class="card-name">'+esc(x.seriesTitle)+'</div><div class="card-meta">EP '+esc(x.episodeNumber)+" · "+esc(x.episodeTitle||"Continue")+'</div></button>'}).join("")}
+function resume(x){const s=series.find(y=>y.id===x.seriesId)||{id:x.seriesId,title:x.seriesTitle,image:x.seriesImage,url:official(x.seriesId)};currentSeries=s;loadEpisodesThen(()=>{const e=episodes.find(y=>y.id===x.episodeId);if(e)playEpisode(e,x.position||0);else openSeries(s.id)})}
+async function loadSeries(refresh=false){try{series=(await get("/api/series"+(refresh?"?refresh=1":""))).series||[];renderHome();if(series[0])setHero(series[0])}catch(e){document.getElementById("seriesRow").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
+function setHero(s){document.getElementById("hero").style.backgroundImage=s.image?'url("'+esc(s.image)+'")':"";document.getElementById("heroTitle").textContent=s.title;document.getElementById("heroMeta").textContent="Series · ARY+"}
+async function openSeries(id){currentSeries=series.find(x=>x.id===id)||{id,title:id,url:official(id)};document.getElementById("detail").classList.add("open");document.body.style.overflow="hidden";document.getElementById("detailTitle").textContent=currentSeries.title;document.getElementById("detailDesc").textContent="Loading title information…";document.getElementById("detailCast").textContent="";document.getElementById("episodeGrid").innerHTML='<div class="loading">Loading episodes…</div>';document.getElementById("official").href=currentSeries.url||official(id);try{const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries={...currentSeries,...d.series};document.getElementById("detailTitle").textContent=currentSeries.title;document.getElementById("detailDesc").textContent=currentSeries.description||"Explore the complete discovered episode catalogue.";document.getElementById("detailCast").textContent=currentSeries.cast?.length?"Cast: "+currentSeries.cast.join(", "):"";document.getElementById("detailHero").style.backgroundImage=currentSeries.backdrop||currentSeries.image?'url("'+esc(currentSeries.backdrop||currentSeries.image)+'")':"";document.getElementById("detailFacts").innerHTML=[currentSeries.year,currentSeries.genres?.join(" · "),currentSeries.id].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");document.getElementById("official").href=currentSeries.url||official(id)}catch(e){}await loadEpisodesThen(()=>{document.getElementById("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);renderEpisodes()})}
+async function loadEpisodesThen(done){try{episodes=(await get("/api/episodes?series="+encodeURIComponent(currentSeries.id))).episodes||[];buildSeasons();done&&done()}catch(e){document.getElementById("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
+function seasonOf(e){const r=e.raw||{};return String(r.seasonNumber??r.season_number??r.season??"1")}
+function buildSeasons(){const map={};episodes.forEach(e=>(map[seasonOf(e)]??=[]).push(e));const keys=Object.keys(map).sort((a,b)=>Number(a)-Number(b));document.getElementById("seasonBar").innerHTML=keys.map((s,i)=>'<button class="season '+(!i?'active':'')+'" onclick="selectSeason('+JSON.stringify(s)+',this)">Season '+esc(s)+'</button>').join("");seasonEpisodes=map[keys[0]]||episodes}
+function selectSeason(s,b){document.querySelectorAll(".season").forEach(x=>x.classList.remove("active"));b.classList.add("active");seasonEpisodes=episodes.filter(e=>seasonOf(e)===s);renderEpisodes()}
+function renderEpisodes(){const q=document.getElementById("episodeSearch").value.toLowerCase().trim();const list=seasonEpisodes.filter(e=>(String(e.number)+" "+e.title).toLowerCase().includes(q));document.getElementById("episodeGrid").innerHTML=list.length?list.map(e=>'<article class="ep"><div class="ep-thumb">'+(e.thumbnail?'<img loading="lazy" src="'+esc(e.thumbnail)+'" alt="">':"")+'<span class="ep-num">EP '+esc(e.number??"")+'</span></div><div class="ep-body"><div class="ep-title">'+esc(e.title)+'</div><div class="ep-date">'+esc(e.date||"")+'</div><div class="ep-actions"><button class="watch" onclick="playEpisodeById('+JSON.stringify(e.id)+')">▶ Watch</button><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+',this)">↓ Download</button></div><div id="status-'+esc(e.id)+'" class="status"></div></div></article>').join(""):'<div class="empty">No matching episodes.</div>'}
 function playEpisodeById(id){const e=episodes.find(x=>x.id===id);if(e)playEpisode(e)}
-async function playEpisode(e){
- currentEpisode=e;document.getElementById("player").classList.add("open");document.body.style.overflow="hidden";document.getElementById("playerTitle").textContent=(currentSeries?.title||"Series")+" · "+(e.title||("Episode "+e.number));document.getElementById("playerQuality").textContent="Loading…";
- const video=document.getElementById("video");if(hls){hls.destroy();hls=null}video.removeAttribute("src");video.load();
- try{
-   const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
-   const source=d.stream?.source||d.stream?.best?.uri;
-   const best=d.stream?.best;
-   document.getElementById("playerQuality").textContent=best?(best.width+"×"+best.height):"HLS";
-   if(!source)throw Error("No playable HLS source was returned.");
-   if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false});hls.loadSource(source);hls.attachMedia(video);hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));hls.on(Hls.Events.ERROR,(_,data)=>{if(data.fatal)toast("Player error. Use Open ARY Plus for this episode.")})}
-   else if(video.canPlayType("application/vnd.apple.mpegurl")){video.src=source;video.play().catch(()=>{})}
-   else throw Error("This browser cannot play HLS.");
- }catch(err){document.getElementById("playerNote").innerHTML=esc(err.message)+' · <a target="_blank" rel="noopener" href="'+esc(currentSeries.url||official(currentSeries.id))+'" style="color:#fff">Open ARY Plus</a>'}
-}
-function closePlayer(){const p=document.getElementById("player");p.classList.remove("open");const v=document.getElementById("video");v.pause();if(hls){hls.destroy();hls=null}v.removeAttribute("src");v.load();if(!document.getElementById("detail").classList.contains("open"))document.body.style.overflow=""}
-function closeDetail(){document.getElementById("detail").classList.remove("open");document.body.style.overflow="";episodes=[]}
-async function downloadEpisode(id,button){
- const box=document.getElementById("status-"+id);button.disabled=true;box.textContent="Preparing highest available quality…";
- try{
-  const e=episodes.find(x=>x.id===id);const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));
-  box.textContent="Download started · "+(d.job.quality||"best")+" · "+(d.job.resolution||"");
-  pollDownload(d.job.id,box,button);
- }catch(err){box.textContent=err.message;button.disabled=false}
-}
-async function pollDownload(id,box,button){
- try{const j=(await get("/api/download/"+id)).job;box.textContent=j.state+(j.quality?" · "+j.quality:"")+(j.size?" · "+(j.size/1024/1024).toFixed(1)+" MB":"")+(j.error?" · "+j.error:"");if(j.state==="completed"){box.textContent="Downloaded: "+j.filename;button.disabled=false}else if(j.state==="error"){button.disabled=false}else setTimeout(()=>pollDownload(id,box,button),1200)}catch(e){setTimeout(()=>pollDownload(id,box,button),2000)}
-}
-function randomPlay(){if(!series.length)return;const s=series[Math.floor(Math.random()*series.length)];openSeries(s.id)}
+async function playEpisode(e,position=0){currentEpisode=e;currentIndex=episodes.findIndex(x=>x.id===e.id);document.getElementById("player").classList.add("open");document.body.style.overflow="hidden";document.getElementById("nextToast").style.display="none";document.getElementById("playerTitle").textContent=(currentSeries?.title||"Series")+" · EP "+(e.number??"")+" · "+(e.title||"Episode");const v=document.getElementById("video");if(hls){hls.destroy();hls=null}v.removeAttribute("src");v.load();document.getElementById("quality").innerHTML='<option>Loading quality…</option>';try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));variants=d.stream?.variants||[];const source=d.stream?.source||d.stream?.best?.uri;if(!source)throw Error("No playable HLS source returned.");fillQualities();attachStream(source,position);v.ontimeupdate=()=>{if(v.currentTime>2&&Math.floor(v.currentTime)%5===0)saveWatch(e,v.currentTime)};v.onended=()=>{saveWatch(e,v.duration);if(currentIndex<episodes.length-1){document.getElementById("nextToast").style.display="block";setTimeout(()=>{if(document.getElementById("player").classList.contains("open"))playNext()},3500)}}}catch(err){document.getElementById("playerNote").textContent=err.message+" · Open ARY+ if browser playback is blocked."}}
+function fillQualities(){const q=document.getElementById("quality");const sorted=[...variants].filter(x=>x.uri).sort((a,b)=>(b.height||0)-(a.height||0));q.innerHTML=sorted.length?sorted.map((x,i)=>'<option value="'+i+'">'+esc(x.height?x.height+"p":"Auto")+(x.width?" · "+x.width+"×"+x.height:"")+'</option>').join(""):'<option value="-1">Auto</option>';q.selectedIndex=0}
+function attachStream(source,position=0){const v=document.getElementById("video");const selected=variants.length?[...variants].filter(x=>x.uri).sort((a,b)=>(b.height||0)-(a.height||0))[0]:null;const uri=selected?.uri||source;if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false});hls.loadSource(uri);hls.attachMedia(v);hls.on(Hls.Events.MANIFEST_PARSED,()=>{v.currentTime=position||0;v.play().catch(()=>{})});hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)toast("Playback blocked by source; try Open ARY+.")})}else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=uri;v.onloadedmetadata=()=>{v.currentTime=position||0;v.play().catch(()=>{})}}else throw Error("This browser cannot play HLS.")}
+function changeQuality(){const i=Number(document.getElementById("quality").value);const sorted=[...variants].filter(x=>x.uri).sort((a,b)=>(b.height||0)-(a.height||0));if(!sorted[i])return;const pos=document.getElementById("video").currentTime||0;attachStream(sorted[i].uri,pos)}
+function playNext(){document.getElementById("nextToast").style.display="none";if(currentIndex<episodes.length-1)playEpisode(episodes[currentIndex+1])}
+function closePlayer(){const v=document.getElementById("video");saveWatch(currentEpisode,v.currentTime||0);v.pause();if(hls){hls.destroy();hls=null}v.removeAttribute("src");v.load();document.getElementById("player").classList.remove("open");document.getElementById("nextToast").style.display="none";if(!document.getElementById("detail").classList.contains("open"))document.body.style.overflow=""}
+function closeDetail(){document.getElementById("detail").classList.remove("open");if(!document.getElementById("player").classList.contains("open"))document.body.style.overflow=""}
+async function downloadEpisode(id,button){const box=document.getElementById("status-"+id);button.disabled=true;box.textContent="Preparing highest quality…";try{const e=episodes.find(x=>x.id===id);const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));box.textContent="Started · "+(d.job.quality||"best")+" · "+(d.job.resolution||"");pollDownload(d.job.id,box,button)}catch(err){box.textContent=err.message;button.disabled=false}}
+async function pollDownload(id,box,b){try{const j=(await get("/api/download/"+id)).job;box.textContent=j.state+(j.quality?" · "+j.quality:"")+(j.size?" · "+(j.size/1024/1024).toFixed(1)+" MB":"")+(j.error?" · "+j.error:"");if(j.state==="completed"){box.textContent="Downloaded: "+j.filename;b.disabled=false}else if(j.state==="error")b.disabled=false;else setTimeout(()=>pollDownload(id,box,b),1200)}catch{setTimeout(()=>pollDownload(id,box,b),2000)}}
+function heroPlay(){if(series[0])openSeries(series[0].id)}
+function toggleFullscreen(){const p=document.getElementById("player");if(document.fullscreenElement)document.exitFullscreen();else p.requestFullscreen?.()}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
-loadSeries();
+loadSeries();renderContinue();
 </script>
 </body>
 </html>
