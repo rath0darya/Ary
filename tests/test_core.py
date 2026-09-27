@@ -5,6 +5,7 @@ from ary_episode_watcher import (
     parse_hls_master,
     safe_filename,
     _series_from_html,
+    _internal_links,
 )
 
 
@@ -39,6 +40,20 @@ class CoreTests(unittest.TestCase):
         result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
         self.assertEqual(result[0]["id"], "tf123")
         self.assertEqual(result[0]["content_type"], "Telefilm")
+
+    def test_internal_catalogue_links(self):
+        html = '''
+        <a href="/browse/genre/abc123">Drama</a>
+        <a href="https://aryplus.tv/browse/genre/def456">Shows</a>
+        <a href="/title/title123">Example</a>
+        <a href="https://example.com/title/nope">Ignore</a>
+        '''
+        genres, titles = _internal_links(html, "https://aryplus.tv/")
+        self.assertEqual(genres, {
+            "https://aryplus.tv/browse/genre/abc123",
+            "https://aryplus.tv/browse/genre/def456",
+        })
+        self.assertEqual(titles, {"https://aryplus.tv/title/title123"})
 
     def test_safe_filename(self):
         self.assertEqual(
