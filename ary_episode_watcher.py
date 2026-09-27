@@ -305,7 +305,7 @@ def _internal_links(text: str, source_url: str) -> tuple[set[str], set[str]]:
     """Return ARY genre/category pages and title pages linked by a catalogue page."""
     genre_links: set[str] = set()
     title_links: set[str] = set()
-    for raw in re.findall(r'href\\s*=\\s*["\\']([^"\\']+)["\\']', text, re.I):
+    for raw in re.findall(r'href\s*=\s*["\']([^"\']+)["\']', text, re.I):
         url = urljoin(source_url, html.unescape(raw))
         parsed = urlparse(url)
         if parsed.netloc not in {"aryplus.tv", "www.aryplus.tv"}:
