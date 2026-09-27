@@ -13,7 +13,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse
+from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 APP_DIR = Path(__file__).resolve().parent
@@ -256,34 +256,62 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _series_from_html(text: str, source_url: str, source_hint: str = "") -> list[dict[str, Any]]:
-    """Parse ARY catalogue cards using each card's own Movie/Series marker."""
+    """Parse ARY catalogue cards without leaking type information between cards."""
     found: dict[str, dict[str, Any]] = {}
     pattern = r"""href=["']/?title/([A-Za-z0-9]+)["'][^>]*>(.*?)</a>"""
+    matches = list(re.finditer(pattern, text, re.I | re.S))
     hint = re.sub(r"\s+", " ", html.unescape(source_hint or "")).strip()
     hint_lower = hint.lower()
 
-    def card_type(anchor_text: str) -> str | None:
-        label = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor_text)).strip()
-        match = re.search(r"\b(Live|Movie|Series)\s*$", label, re.I)
-        marker = match.group(1).lower() if match else ""
-        if marker == "live":
-            return "Live"
-        if hint_lower in {"telefilms", "telefilm"}:
-            return "Telefilm"
-        if hint_lower in {"tv shows", "shows", "show"}:
-            return "Show"
-        if marker == "movie":
-            return "Movie"
-        if marker == "series":
-            return "Series"
-        return None
+    def visible(value: str) -> str:
+        value = html.unescape(value)
+        value = re.sub(r"<[^>]+>", " ", value)
+        return re.sub(r"\s+", " ", value).strip()
 
-    for match in re.finditer(pattern, text, re.I | re.S):
+    def marker_type(value: str) -> str | None:
+        """Read only a card-local Movie/Series/Live marker."""
+        value = visible(value)
+        # ARY's card text is commonly: "Title Movie", "Title Series49 Ep",
+        # or "Title Series22 Ep". Keep the marker tied to this card.
+        match = re.search(
+            r"\b(Live|Movie|Series)(?:\s*\d+)?(?:\s*Ep(?:isode)?\s*\d+)?\b",
+            value,
+            re.I,
+        )
+        if not match:
+            return None
+        return match.group(1).lower()
+
+    for index, match in enumerate(matches):
         series_id, anchor = match.group(1), match.group(2)
-        content_type = card_type(anchor)
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+
+        # The ARY marker can be outside the <a> element (for example a sibling
+        # span containing "Series49 Ep"). Restrict inspection to the current
+        # card's text, ending at the next title link, so the next card cannot
+        # change this item's type.
+        card_block = text[match.start():next_start]
+        marker = marker_type(anchor) or marker_type(card_block[:1200])
+
+        if hint_lower in {"telefilms", "telefilm"}:
+            content_type = "Telefilm"
+        elif hint_lower in {"tv shows", "shows", "show"}:
+            content_type = "Show"
+        elif marker == "live":
+            content_type = "Live"
+        elif marker == "movie":
+            content_type = "Movie"
+        elif marker == "series":
+            content_type = "Series"
+        else:
+            # A title without a visible type marker is still useful for
+            # discovery, but leave classification for title-page metadata.
+            content_type = None
+
         if not content_type or content_type == "Live":
             continue
-        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+
+        title = visible(anchor)
         title = re.sub(r"^\s*13\+\s*", "", title, flags=re.I)
         title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
         title = re.sub(r"\s+(?:Series|Movie|Live)\s*$", "", title, flags=re.I).strip()
