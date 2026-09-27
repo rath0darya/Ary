@@ -94,7 +94,7 @@ def http_text(url: str, headers: dict[str, str] | None = None, timeout: int = 25
 
 def extract_json_value(text: str, names: list[str]) -> str | None:
     for name in names:
-        pattern = r'["\\']' + re.escape(name) + r'["\\']\\s*:\\s*["\\']([^"\\']+)["\\']'
+        pattern = r"""["']""" + re.escape(name) + r"""["']\\s*:\\s*["']([^"']+)["']"""
         match = re.search(pattern, text, re.I)
         if match:
             return match.group(1).strip()
