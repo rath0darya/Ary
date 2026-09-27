@@ -191,32 +191,48 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     return list(found.values())
 
 
+def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
+    found: dict[str, dict[str, Any]] = {}
+    for match in re.finditer(
+        r'href=["\\\']/?title/([A-Za-z0-9]+)["\\\']([^>]*)>(.*?)</a>',
+        text,
+        re.I | re.S,
+    ):
+        series_id, attrs, anchor = match.group(1), match.group(2), match.group(3)
+        context = text[max(0, match.start()-250):min(len(text), match.end()+500)]
+        if not re.search(r'\\bSeries\\b', context, re.I):
+            continue
+        title = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"\\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
+        found.setdefault(series_id, {
+            "id": series_id,
+            "title": title or series_id,
+            "url": urljoin(source_url, "/title/" + series_id),
+        })
+    return list(found.values())
+
+
 def discover_series(force: bool = False) -> list[dict[str, Any]]:
     with CACHE_LOCK:
         if not force and CACHE.get("series"):
             return CACHE["series"]
 
     found: dict[str, dict[str, Any]] = {}
-    for source_url in DISCOVERY_URLS:
+    for url in DISCOVERY_URLS:
         try:
-            html = http_text(source_url, timeout=25)
-            for item in _series_from_html(html, source_url):
+            html = http_text(url, timeout=25)
+            for item in _series_from_html(html, url):
                 found[item["id"]] = item
         except Exception as exc:
-            print("[DISCOVERY]", source_url, "failed:", exc)
+            print("[DISCOVERY]", url, "failed:", exc)
 
     if not found:
-        raise RuntimeError("Unable to discover ARY series from the configured catalogue pages.")
+        raise RuntimeError("Unable to discover ARY series from configured catalogue pages.")
 
-    series = sorted(found.values(), key=lambda x: x["title"].lower())
+    result = sorted(found.values(), key=lambda x: x["title"].lower())
     with CACHE_LOCK:
-        CACHE["series"] = series
-        CACHE["series_at"] = time.time()
-    return series
-
-
-def _series_key(series_id: str) -> str:
-    return "episodes:" + series_id
+        CACHE["series"] = result
+    return result
 
 
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
