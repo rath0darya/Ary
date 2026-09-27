@@ -329,6 +329,7 @@ def _looks_like_episode(item: dict[str, Any]) -> bool:
         "episode_id", "nextepid", "videosource", "video_source",
         "episodetitle", "videotitle", "videotitle", "videotitletext", "seasonnumber",
         "episodeno", "episodenumber", "videonumber", "videopageno", "epno",
+        "videourl", "video_url", "streamurl", "stream_url",
     })
 
 
@@ -939,6 +940,8 @@ def _episode_api_candidates(text: str, series_id: str) -> list[str]:
         # Relative API routes embedded in JSON/JS.
         for m in re.finditer(r'["\\']((?:/)?api/[^"\\']+)["\\']', blob, re.I):
             path = m.group(1)
+            path = re.sub(r"\$\{(?:series|seriesId|id)\}", series_id, path)
+            path = re.sub(r"\{(?:series|seriesId|id)\}", series_id, path)
             if re.search(r"episode|video|series|title|content", path, re.I):
                 full = urljoin(ARY_BASE + "/", path.lstrip("/"))
                 if full not in seen:
