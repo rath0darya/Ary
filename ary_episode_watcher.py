@@ -57,6 +57,8 @@ USER_AGENT = os.environ.get(
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.RLock()
+METADATA_JOB: dict[str, Any] = {"state":"idle","done":0,"total":0,"error":""}
+METADATA_LOCK = threading.RLock()
 
 # Persistent local catalogue. Normal requests read this instead of rediscovering ARY.
 CATALOGUE_FILE = CACHE_DIR / "catalogue.json"
@@ -324,11 +326,11 @@ def _html_meta(text: str, name: str) -> str | None:
     return None
 
 
-def series_details(series_id: str) -> dict[str, Any]:
+def series_details(series_id: str, force: bool = False) -> dict[str, Any]:
     series_id = series_id.strip()
     with CACHE_LOCK:
         saved = CACHE.get("details", {}).get(series_id)
-    if saved:
+    if saved and not force:
         return saved
     base = next(
         (x for x in discover_series() if x["id"] == series_id),
@@ -388,6 +390,42 @@ def series_details(series_id: str) -> dict[str, Any]:
     _save_catalogue_store()
     return result
 
+
+def _metadata_worker():
+    global METADATA_JOB
+    with METADATA_LOCK:
+        METADATA_JOB = {"state":"running","done":0,"total":len(CACHE.get("series",[])),"error":""}
+    try:
+        items = list(CACHE.get("series", []))
+        for index, item in enumerate(items, 1):
+            try:
+                detail = series_details(item["id"], force=True)
+                merged = {**item, **detail}
+                with CACHE_LOCK:
+                    for pos, existing in enumerate(CACHE.get("series", [])):
+                        if existing.get("id") == item["id"]:
+                            CACHE["series"][pos] = merged
+                            break
+            except Exception as exc:
+                print("[METADATA]", item.get("id"), "failed:", exc, flush=True)
+            with METADATA_LOCK:
+                METADATA_JOB["done"] = index
+            if index % 10 == 0:
+                _save_catalogue_store()
+        _save_catalogue_store()
+        with METADATA_LOCK:
+            METADATA_JOB["state"] = "completed"
+    except Exception as exc:
+        with METADATA_LOCK:
+            METADATA_JOB["state"] = "error"
+            METADATA_JOB["error"] = str(exc)
+
+def start_metadata_update() -> dict[str, Any]:
+    with METADATA_LOCK:
+        if METADATA_JOB.get("state") == "running":
+            return dict(METADATA_JOB)
+    threading.Thread(target=_metadata_worker, daemon=True).start()
+    return {"state":"running","done":0,"total":len(CACHE.get("series",[])),"error":""}
 
 def _series_key(series_id: str) -> str:
     return "episodes:" + series_id
@@ -746,6 +784,12 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "series": discover_series(query.get("refresh", ["0"])[0] == "1"),
                 })
+
+            if path == "/api/catalogue/metadata":
+                if query.get("start", ["0"])[0] == "1":
+                    return json_response(self, {"ok": True, "job": start_metadata_update()})
+                with METADATA_LOCK:
+                    return json_response(self, {"ok": True, "job": dict(METADATA_JOB)})
 
             if path == "/api/series/detail":
                 sid = query.get("series", [""])[0].strip()
