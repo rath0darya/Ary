@@ -301,24 +301,104 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     return list(found.values())
 
 
+def _internal_links(text: str, source_url: str) -> tuple[set[str], set[str]]:
+    """Return ARY genre/category pages and title pages linked by a catalogue page."""
+    genre_links: set[str] = set()
+    title_links: set[str] = set()
+    for raw in re.findall(r'href\\s*=\\s*["\\']([^"\\']+)["\\']', text, re.I):
+        url = urljoin(source_url, html.unescape(raw))
+        parsed = urlparse(url)
+        if parsed.netloc not in {"aryplus.tv", "www.aryplus.tv"}:
+            continue
+        path = parsed.path.rstrip("/")
+        if re.match(r"^/browse/genre/[A-Za-z0-9]+$", path, re.I):
+            genre_links.add(url)
+        elif re.match(r"^/title/[A-Za-z0-9]+$", path, re.I):
+            title_links.add(url)
+    return genre_links, title_links
+
+
+def _discovery_page_variants(url: str) -> list[str]:
+    """Generate common public pagination forms used by ARY catalogue pages."""
+    parsed = urlparse(url)
+    base = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    return [
+        url + ("&" if parsed.query else "?") + "page=" + str(page)
+        for page in range(2, 26)
+    ] + [
+        base + "?offset=" + str(offset)
+        for offset in range(100, 2501, 100)
+    ] + [
+        base + "?skip=" + str(offset)
+        for offset in range(100, 2501, 100)
+    ]
+
+
 def discover_series(force: bool = False) -> list[dict[str, Any]]:
     with CACHE_LOCK:
         if not force and CACHE.get("series"):
             return CACHE["series"]
+
     found: dict[str, dict[str, Any]] = {}
-    for url in DISCOVERY_URLS:
+    queue: list[str] = list(dict.fromkeys(DISCOVERY_URLS))
+    queued = set(queue)
+    visited: set[str] = set()
+    title_pages: list[str] = []
+
+    # Do not assume the hand-written genre list is complete. ARY exposes
+    # additional genre/category pages from its own catalogue pages.
+    while queue and len(visited) < 300:
+        url = queue.pop(0)
+        if url in visited:
+            continue
+        visited.add(url)
         try:
             html = http_text(url, timeout=25)
+        except Exception as exc:
+            print("[DISCOVERY]", url, "failed:", exc, flush=True)
+            continue
+
+        for item in _series_from_html(html, url):
+            found[item["id"]] = item
+
+        genre_links, title_links = _internal_links(html, url)
+        for link in genre_links:
+            if link not in visited and link not in queued:
+                queue.append(link)
+                queued.add(link)
+
+        for link in title_links:
+            if link not in title_pages and len(title_pages) < 1500:
+                title_pages.append(link)
+
+        # Probe public pagination only when it produces new title IDs. A
+        # server that ignores the parameter simply yields duplicates.
+        if re.search(r"/browse/genre/", url, re.I):
+            for variant in _discovery_page_variants(url):
+                if variant not in visited and variant not in queued and len(queue) < 400:
+                    queue.append(variant)
+                    queued.add(variant)
+
+    # A second pass over title pages lets the catalogue grow from ARY's own
+    # related-content links, without depending on search-engine indexing.
+    for index, url in enumerate(title_pages, 1):
+        if index > 1500:
+            break
+        try:
+            html = http_text(url, timeout=20)
             for item in _series_from_html(html, url):
                 found[item["id"]] = item
         except Exception as exc:
-            print("[DISCOVERY]", url, "failed:", exc, flush=True)
+            print("[DISCOVERY-TITLE]", url, "failed:", exc, flush=True)
+
     if not found:
-        raise RuntimeError("Unable to discover ARY series from configured catalogue pages.")
+        raise RuntimeError("Unable to discover ARY catalogue content from configured catalogue pages.")
+
     result = sorted(found.values(), key=lambda x: x["title"].lower())
     with CACHE_LOCK:
         CACHE["series"] = result
     _save_catalogue_store()
+    print("[DISCOVERY] pages=", len(visited), "titles=", len(result), flush=True)
     return result
 
 
