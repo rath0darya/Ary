@@ -73,6 +73,11 @@ def _load_catalogue_store() -> None:
             CACHE.update(data)
             CACHE.setdefault("series", [])
             CACHE.setdefault("details", {})
+            saved_episodes = CACHE.pop("episodes", {})
+            if isinstance(saved_episodes, dict):
+                for key, value in saved_episodes.items():
+                    if str(key).startswith("episodes:"):
+                        CACHE[key] = value
             print("[CATALOGUE] Loaded persistent catalogue", flush=True)
     except Exception as exc:
         print("[CATALOGUE] Load failed:", exc, flush=True)
