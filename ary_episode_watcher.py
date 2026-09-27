@@ -247,7 +247,9 @@ def _media_url(value: Any, base_url: str = ARY_WEB) -> str | None:
         return urljoin(base_url + "/", value)
     if isinstance(value, dict):
         for key in ("url", "src", "image", "imageUrl", "thumbnail", "thumbnailUrl",
-                    "poster", "posterUrl", "cover", "coverUrl", "path"):
+                    "poster", "posterUrl", "cover", "coverUrl", "thumbnailImage", "thumbnail_image",
+                    "episodeImage", "episode_image", "episodeThumbnail", "episode_thumbnail",
+                    "videoImage", "video_image", "videoThumbnail", "video_thumbnail", "path"):
             result = _media_url(value.get(key), base_url)
             if result:
                 return result
@@ -325,7 +327,8 @@ def _looks_like_episode(item: dict[str, Any]) -> bool:
     return bool(keys & {
         "videoepnumber", "episodenumber", "episode_number", "episodeid",
         "episode_id", "nextepid", "videosource", "video_source",
-        "episodetitle", "seasonnumber",
+        "episodetitle", "videotitle", "videotitle", "videotitletext", "seasonnumber",
+        "episodeno", "episodenumber", "videonumber", "videopageno", "epno",
     })
 
 
@@ -344,6 +347,66 @@ def _collect_episode_dicts(value: Any, series_id: str) -> list[dict[str, Any]]:
                 walk(child)
     walk(value)
     return found
+
+
+def _collect_title_dicts(value: Any, source_url: str) -> list[dict[str, Any]]:
+    """Find ARY title records embedded in catalogue JSON/Next data."""
+    found: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            ident = node.get("id") or node.get("_id") or node.get("seriesId") or node.get("series_id")
+            title = node.get("title") or node.get("name")
+            if ident and title:
+                sid = str(ident)
+                # ARY content IDs are alphanumeric; require a title-like record
+                # to avoid treating arbitrary API objects as catalogue cards.
+                if re.fullmatch(r"[A-Za-z0-9_-]{8,80}", sid) and len(str(title).strip()) >= 2:
+                    key = sid
+                    if key not in seen:
+                        seen.add(key)
+                        image = _media_url(
+                            node.get("image") or node.get("imageUrl") or
+                            node.get("thumbnail") or node.get("thumbnailUrl") or
+                            node.get("poster") or node.get("posterUrl") or
+                            node.get("cover") or node.get("coverUrl")
+                        )
+                        raw_type = str(
+                            node.get("content_type") or node.get("contentType") or
+                            node.get("type") or node.get("category") or ""
+                        ).lower()
+                        if "telefilm" in raw_type:
+                            ctype = "Telefilm"
+                        elif "movie" in raw_type:
+                            ctype = "Movie"
+                        elif "show" in raw_type:
+                            ctype = "Show"
+                        else:
+                            ctype = "Series"
+                        found.append({
+                            "id": sid,
+                            "title": str(title).strip(),
+                            "url": urljoin(source_url, "/title/" + sid),
+                            "image": image,
+                            "content_type": ctype,
+                            "catalogue_genres": [],
+                        })
+            for child in node.values():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+    walk(value)
+    return found
+
+
+def _extract_title_catalogue(text: str, source_url: str) -> list[dict[str, Any]]:
+    found: dict[str, dict[str, Any]] = {}
+    for payload in _json_candidates(text):
+        for item in _collect_title_dicts(payload, source_url):
+            found[item["id"]] = item
+    return list(found.values())
 
 
 def _extract_episode_catalogue(text: str, series_id: str) -> list[dict[str, Any]]:
@@ -401,6 +464,9 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
         item.get("title")
         or item.get("name")
         or item.get("episodeTitle")
+        or item.get("videoTitle")
+        or item.get("video_title")
+        or item.get("name")
         or (f"Episode {number}" if number is not None else "Episode")
     )
     episode_id = (
@@ -408,6 +474,8 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
         or item.get("_id")
         or item.get("episodeId")
         or item.get("episode_id")
+        or item.get("videoId")
+        or item.get("video_id")
     )
     return {
         "id": str(episode_id) if episode_id is not None else "",
@@ -417,8 +485,20 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
         "thumbnail": _media_url(
             item.get("thumbnail")
             or item.get("thumbnailUrl")
+            or item.get("thumbnail_url")
+            or item.get("thumbnailImage")
+            or item.get("thumbnail_image")
+            or item.get("episodeImage")
+            or item.get("episode_image")
+            or item.get("episodeThumbnail")
+            or item.get("episode_thumbnail")
+            or item.get("videoImage")
+            or item.get("video_image")
+            or item.get("videoThumbnail")
+            or item.get("video_thumbnail")
             or item.get("image")
             or item.get("imageUrl")
+            or item.get("image_url")
             or item.get("poster")
             or item.get("cover")
         ),
@@ -589,6 +669,26 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
         page_hint = _catalogue_heading(html)
         for item in _series_from_html(html, url, page_hint):
             found[item["id"]] = item
+        # Modern ARY catalogue pages often hydrate cards from embedded JSON
+        # rather than rendering every title as a normal <a> element.
+        for item in _extract_title_catalogue(html, url):
+            if page_hint:
+                hint_lower = page_hint.lower()
+                if hint_lower in {"telefilms", "telefilm"}:
+                    item["content_type"] = "Telefilm"
+                elif hint_lower in {"tv shows", "shows", "show"}:
+                    item["content_type"] = "Show"
+                item.setdefault("catalogue_genres", [])
+                if page_hint not in item["catalogue_genres"] and hint_lower not in {"all", "browse"}:
+                    item["catalogue_genres"].append(page_hint)
+            previous = found.get(item["id"])
+            if previous:
+                if not previous.get("image") and item.get("image"):
+                    previous["image"] = item["image"]
+                if previous.get("content_type") == "Series" and item.get("content_type") != "Series":
+                    previous["content_type"] = item["content_type"]
+            else:
+                found[item["id"]] = item
 
         genre_links, title_links = _internal_links(html, url)
         for link in genre_links:
@@ -825,6 +925,27 @@ def _extract_video_sources(text: str) -> list[str]:
     return found
 
 
+def _episode_api_candidates(text: str, series_id: str) -> list[str]:
+    """Extract likely episode/video JSON endpoints exposed by the ARY page."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+    blobs = [html.unescape(text).replace("\\/", "/").replace("\\\"", '"')]
+    # Absolute API URLs.
+    for blob in blobs:
+        for m in re.finditer(r'https?://[^"\\'<>\s]+', blob, re.I):
+            url = m.group(0).rstrip("\\'\")],;")
+            if re.search(r"/api/|episode|video|series", url, re.I) and url not in seen:
+                seen.add(url); candidates.append(url)
+        # Relative API routes embedded in JSON/JS.
+        for m in re.finditer(r'["\\']((?:/)?api/[^"\\']+)["\\']', blob, re.I):
+            path = m.group(1)
+            if re.search(r"episode|video|series|title|content", path, re.I):
+                full = urljoin(ARY_BASE + "/", path.lstrip("/"))
+                if full not in seen:
+                    seen.add(full); candidates.append(full)
+    return candidates[:40]
+
+
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
@@ -842,6 +963,19 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     page = http_text(page_url, {"Referer": ARY_WEB + "/"}, timeout=30)
 
     raw_items = _extract_episode_catalogue(page, series_id)
+
+    # Some ARY title pages are only an app shell; their episode catalogue
+    # is fetched from a JSON endpoint referenced by the page. Try those
+    # endpoints before concluding that the title has no episodes.
+    if not raw_items:
+        for endpoint in _episode_api_candidates(page, series_id):
+            try:
+                payload = api_json(endpoint, timeout=20)
+                raw_items.extend(_collect_episode_dicts(payload, series_id))
+                if raw_items:
+                    break
+            except Exception as exc:
+                print("[EPISODES-API]", series_id, endpoint, "failed:", exc, flush=True)
 
     # Movies/telefilms and some specials expose one direct video source instead
     # of an episode list.
@@ -878,6 +1012,9 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             or _media_url(raw.get("stream"), ARY_WEB)
             or _media_url(raw.get("streamUrl"), ARY_WEB)
             or _media_url(raw.get("stream_url"), ARY_WEB)
+            or _media_url(raw.get("videoUrl"), ARY_WEB)
+            or _media_url(raw.get("video_url"), ARY_WEB)
+            or _media_url(raw.get("source"), ARY_WEB)
         )
         item["description"] = raw.get("description") or raw.get("episodeDescription") or ""
         item["next_episode_id"] = raw.get("nextEpId") or raw.get("nextEpisodeId") or raw.get("next_episode_id")
