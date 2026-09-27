@@ -33,6 +33,8 @@ DISCOVERY_URLS = [
             "https://aryplus.tv/browse/genre/677d1cb843f1091ceb256ab1",
             "https://aryplus.tv/browse/genre/64f374725813b7bff6cbd802",
             "https://aryplus.tv/browse/genre/684032e9f8d1dd20986123d5",
+            "https://aryplus.tv/browse/genre/685034f9ed08c2bef38ffec0",
+            "https://aryplus.tv/browse/genre/669a467156ded50194cf0df0",
         ]),
     ).split(",")
     if item.strip()
