@@ -80,6 +80,34 @@ def html_response(handler: BaseHTTPRequestHandler, body: bytes, status: int = 20
     handler.wfile.write(body)
 
 
+def image_response(handler: BaseHTTPRequestHandler, target_url: str):
+    parsed = urlparse(target_url)
+    if parsed.scheme not in ("http", "https"):
+        return json_response(handler, {"ok": False, "error": "Only HTTP(S) images are allowed."}, 400)
+    try:
+        request = Request(target_url, headers={
+            "User-Agent": USER_AGENT,
+            "Referer": ARY_WEB + "/",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        })
+        with urlopen(request, timeout=20) as response:
+            content_type = response.headers.get("Content-Type", "application/octet-stream")
+            if not content_type.lower().startswith("image/"):
+                return json_response(handler, {"ok": False, "error": "Target did not return an image."}, 415)
+            data = response.read(12 * 1024 * 1024 + 1)
+            if len(data) > 12 * 1024 * 1024:
+                return json_response(handler, {"ok": False, "error": "Image is too large."}, 413)
+        handler.send_response(200)
+        handler.send_header("Content-Type", content_type)
+        handler.send_header("Cache-Control", "public, max-age=3600")
+        handler.send_header("Content-Length", str(len(data)))
+        handler.send_header("Access-Control-Allow-Origin", "*")
+        handler.end_headers()
+        handler.wfile.write(data)
+    except Exception as exc:
+        return json_response(handler, {"ok": False, "error": "Image proxy failed: " + str(exc)}, 502)
+
+
 def http_get(url: str, headers: dict[str, str] | None = None, timeout: int = 25) -> bytes:
     merged = {"User-Agent": USER_AGENT, "Accept": "*/*"}
     if headers:
@@ -621,6 +649,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not file.exists():
                     return json_response(self, {"ok": False, "error": "Web UI not found."}, 500)
                 return html_response(self, file.read_bytes())
+
+            if path == "/api/image":
+                target = query.get("url", [""])[0].strip()
+                if not target:
+                    return json_response(self, {"ok": False, "error": "url is required"}, 400)
+                return image_response(self, target)
 
             if path == "/api/health":
                 return json_response(self, {
