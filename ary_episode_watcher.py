@@ -644,12 +644,12 @@ def _extract_video_sources(text: str) -> list[str]:
 
     for blob in blobs:
         for match in re.finditer(
-            r'''["\\'](?:videoSource|video_source|videoUrl|video_url|streamUrl|stream_url|sourceUrl|source_url)["\\']\\s*:\\s*["\\'](https?://[^"\\']+)["\\']''',
+            r'''["\\'](?:videoSource|video_source|videoUrl|video_url|streamUrl|stream_url|sourceUrl|source_url)["\\']\s*:\s*["\\'](https?://[^"\\']+)["\\']''',
             blob, re.I,
         ):
             add(match.group(1))
         for match in re.finditer(
-            r'''https?://[^"\\'<>\\s]+(?:\\.m3u8(?:\\?[^"\\'<>\\s]*)?|\\.mp4(?:\\?[^"\\'<>\\s]*)?)''',
+            r'''https?://[^"\\'<>\s]+(?:\.m3u8(?:\?[^"\\'<>\s]*)?|\.mp4(?:\?[^"\\'<>\s]*)?)''',
             blob, re.I,
         ):
             add(match.group(0))
