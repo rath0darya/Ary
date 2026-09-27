@@ -37,9 +37,29 @@ class CoreTests(unittest.TestCase):
 
     def test_telefilm_discovery_parser(self):
         html = '<a href="/title/tf123">Example Telefilm</a><span>Telefilm</span><span>Movie</span>'
-        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
+        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test", "Telefilms")
         self.assertEqual(result[0]["id"], "tf123")
         self.assertEqual(result[0]["content_type"], "Telefilm")
+
+
+    def test_movie_and_show_card_types_do_not_leak_from_neighbouring_cards(self):
+        html = '''
+        <a href="/title/movie123">13+A-One Travels Movie</a>
+        <a href="/title/show123">13+Tamasha Season 5 Series49 Ep</a>
+        <a href="/title/drama123">13+Mera Yaar Miladay Series22 Ep</a>
+        '''
+        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
+        self.assertEqual({x["id"]: x["content_type"] for x in result}, {
+            "movie123": "Movie",
+            "show123": "Series",
+            "drama123": "Series",
+        })
+        shows = _series_from_html(
+            '<a href="/title/show123">13+Tamasha Season 5 Series49 Ep</a>',
+            "https://aryplus.tv/browse/genre/684848223e08d31efd33fbcc",
+            "TV Shows",
+        )
+        self.assertEqual(shows[0]["content_type"], "Show")
 
     def test_internal_catalogue_links(self):
         html = '''
