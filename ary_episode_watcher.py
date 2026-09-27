@@ -57,9 +57,42 @@ USER_AGENT = os.environ.get(
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.RLock()
+
+# Persistent local catalogue. Normal requests read this instead of rediscovering ARY.
+CATALOGUE_FILE = CACHE_DIR / "catalogue.json"
 CACHE: dict[str, Any] = {}
 CACHE_LOCK = threading.RLock()
 
+def _load_catalogue_store() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if not CATALOGUE_FILE.exists():
+        return
+    try:
+        data = json.loads(CATALOGUE_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            CACHE.update(data)
+            CACHE.setdefault("series", [])
+            CACHE.setdefault("details", {})
+            print("[CATALOGUE] Loaded persistent catalogue", flush=True)
+    except Exception as exc:
+        print("[CATALOGUE] Load failed:", exc, flush=True)
+
+def _save_catalogue_store() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with CACHE_LOCK:
+        data = {
+            "schema_version": 1,
+            "updated_at": time.time(),
+            "series": CACHE.get("series", []),
+            "details": CACHE.get("details", {}),
+            "episodes": {k: v for k, v in CACHE.items() if k.startswith("episodes:")},
+        }
+    tmp = CATALOGUE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(CATALOGUE_FILE)
+
+
+_load_catalogue_store()
 
 def json_response(handler: BaseHTTPRequestHandler, payload: Any, status: int = 200):
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -269,6 +302,7 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
     result = sorted(found.values(), key=lambda x: x["title"].lower())
     with CACHE_LOCK:
         CACHE["series"] = result
+    _save_catalogue_store()
     return result
 
 
@@ -286,6 +320,10 @@ def _html_meta(text: str, name: str) -> str | None:
 
 def series_details(series_id: str) -> dict[str, Any]:
     series_id = series_id.strip()
+    with CACHE_LOCK:
+        saved = CACHE.get("details", {}).get(series_id)
+    if saved:
+        return saved
     base = next(
         (x for x in discover_series() if x["id"] == series_id),
         {"id": series_id, "title": series_id, "url": urljoin(ARY_WEB, "/title/" + series_id)},
@@ -329,7 +367,7 @@ def series_details(series_id: str) -> dict[str, Any]:
     genres = json_array("genres") or nearby("Genres") or nearby("Genre")
     cast = json_array("cast") or json_array("actors") or nearby("Cast") or nearby("Starring") or nearby("Actors")
     clean_title = re.sub(r"\s*\|.*$", "", title).strip()
-    return {
+    result = {
         **base,
         "title": clean_title or base.get("title") or series_id,
         "image": image,
@@ -339,6 +377,10 @@ def series_details(series_id: str) -> dict[str, Any]:
         "description": description,
         "cast": cast,
     }
+    with CACHE_LOCK:
+        CACHE.setdefault("details", {})[series_id] = result
+    _save_catalogue_store()
+    return result
 
 
 def _series_key(series_id: str) -> str:
@@ -417,6 +459,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     )
     with CACHE_LOCK:
         CACHE[key] = episodes
+    _save_catalogue_store()
     return episodes
 
 
