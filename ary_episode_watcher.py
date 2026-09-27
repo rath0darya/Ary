@@ -588,6 +588,12 @@ class Handler(BaseHTTPRequestHandler):
                     "series": discover_series(query.get("refresh", ["0"])[0] == "1"),
                 })
 
+            if path == "/api/series/detail":
+                sid = query.get("series", [""])[0].strip()
+                if not sid:
+                    return json_response(self, {"ok": False, "error": "series is required"}, 400)
+                return json_response(self, {"ok": True, "series": series_details(sid)})
+
             if path == "/api/episodes":
                 sid = query.get("series", [""])[0].strip()
                 if not sid:
