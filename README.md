@@ -4,8 +4,8 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 
 ## Features
 
-- Dynamic ARY Plus catalogue for Dar-E-Nijaat.
-- Uses the ARY API instead of hard-coded episode IDs.
+- Dynamic ARY Plus series discovery across ARY Plus catalogue genres.
+- No hard-coded series ID or episode ID; series and episodes are discovered at runtime.
 - Inspects the HLS master playlist and exposes every advertised resolution.
 - Automatically selects the highest advertised video resolution.
 - Downloads with FFmpeg stream copy; no quality-lowering re-encode.
