@@ -32,6 +32,13 @@ class CoreTests(unittest.TestCase):
         html = '<a href="/title/abc123">Example Drama</a><span>Series42 Ep</span>'
         result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
         self.assertEqual(result[0]["id"], "abc123")
+        self.assertEqual(result[0]["content_type"], "Series")
+
+    def test_telefilm_discovery_parser(self):
+        html = '<a href="/title/tf123">Example Telefilm</a><span>Telefilm</span><span>Movie</span>'
+        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
+        self.assertEqual(result[0]["id"], "tf123")
+        self.assertEqual(result[0]["content_type"], "Telefilm")
 
     def test_safe_filename(self):
         self.assertEqual(
