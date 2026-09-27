@@ -631,6 +631,24 @@ class Handler(BaseHTTPRequestHandler):
                 job = start_download(sid, eid, number, title, series_name)
                 return json_response(self, {"ok": True, "job": job})
 
+            if path.startswith("/api/download/file/"):
+                job_id = path.rsplit("/", 1)[-1]
+                with JOBS_LOCK:
+                    job = JOBS.get(job_id)
+                if not job or job.get("state") != "completed":
+                    return json_response(self, {"ok": False, "error": "Download is not completed yet."}, 409)
+                output = Path(job["filename"]).resolve()
+                if not output.is_file() or not output.is_relative_to(DOWNLOAD_DIR.resolve()):
+                    return json_response(self, {"ok": False, "error": "Download file is unavailable."}, 404)
+                data = output.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "video/mp4")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", 'attachment; filename="' + output.name.replace('"', "") + '"')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
             if path.startswith("/api/download/"):
                 job_id = path.rsplit("/", 1)[-1]
                 with JOBS_LOCK:
