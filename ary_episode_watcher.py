@@ -553,7 +553,9 @@ def series_details(series_id: str, force: bool = False) -> dict[str, Any]:
             "show": "Show",
             "movie": "Movie",
         }[raw_type]
-    elif re.search(r"\bTelefilms?\b", " ".join(genres), re.I):
+    # ARY can label a telefilm asset as Movie while its genres/category say
+    # Telefilm. Preserve the more specific catalogue type.
+    if re.search(r"\bTelefilms?\b", " ".join(genres), re.I):
         detected_type = "Telefilm"
     elif re.search(r"\bTV Shows?\b|\bReality\b|\bGame Show\b", " ".join(genres), re.I):
         detected_type = "Show"
@@ -616,6 +618,38 @@ def _series_key(series_id: str) -> str:
     return "episodes:" + series_id
 
 
+def _extract_video_sources(text: str) -> list[str]:
+    """Extract direct ARY video/HLS URLs from HTML or embedded page JSON."""
+    if not text:
+        return []
+    blobs = [text]
+    normalized = html.unescape(
+        text.replace('\\\\\"', '"').replace('\\\\/', '/').replace('\\/', '/')
+    )
+    blobs.append(normalized)
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        value = value.strip().replace('\\/', '/')
+        if value.startswith(("http://", "https://")) and value not in seen:
+            seen.add(value)
+            found.append(value)
+
+    for blob in blobs:
+        for match in re.finditer(
+            r'''["\\'](?:videoSource|video_source|videoUrl|video_url|streamUrl|stream_url|sourceUrl|source_url)["\\']\\s*:\\s*["\\'](https?://[^"\\']+)["\\']''',
+            blob, re.I,
+        ):
+            add(match.group(1))
+        for match in re.finditer(
+            r'''https?://[^"\\'<>\\s]+(?:\\.m3u8(?:\\?[^"\\'<>\\s]*)?|\\.mp4(?:\\?[^"\\'<>\\s]*)?)''',
+            blob, re.I,
+        ):
+            add(match.group(0))
+    return found
+
+
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
@@ -643,13 +677,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
         # Movies/telefilms and some special titles expose one direct videoSource
         # instead of an "episodes" array. Represent that source as a single
         # playable local catalogue item so the same player/download path works.
-        sources = re.findall(
-            r'["\\\']videoSource["\\\']\\s*:\\s*["\\\'](https?://[^"\\\']+)["\\\']',
-            html,
-            re.I,
-        )
-        if not sources:
-            sources = re.findall(r'https?://[^"\\\']+?\.m3u8(?:\?[^"\\\']*)?', html, re.I)
+        sources = _extract_video_sources(html)
         if sources:
             unique_source = next((x for x in sources if ".m3u8" in x.lower()), sources[0])
             with CACHE_LOCK:
