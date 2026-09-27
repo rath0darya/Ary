@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+*.log
+downloads/
+output/
+.pytest_cache/
+.ary-episode-watcher/
