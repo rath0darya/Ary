@@ -255,51 +255,67 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
+def _series_from_html(text: str, source_url: str, source_hint: str = "") -> list[dict[str, Any]]:
+    """Parse ARY catalogue cards using each card's own Movie/Series marker."""
     found: dict[str, dict[str, Any]] = {}
     pattern = r"""href=["']/?title/([A-Za-z0-9]+)["'][^>]*>(.*?)</a>"""
+    hint = re.sub(r"\s+", " ", html.unescape(source_hint or "")).strip()
+    hint_lower = hint.lower()
+
+    def card_type(anchor_text: str) -> str | None:
+        label = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor_text)).strip()
+        match = re.search(r"\b(Live|Movie|Series)\s*$", label, re.I)
+        marker = match.group(1).lower() if match else ""
+        if marker == "live":
+            return "Live"
+        if hint_lower in {"telefilms", "telefilm"}:
+            return "Telefilm"
+        if hint_lower in {"tv shows", "shows", "show"}:
+            return "Show"
+        if marker == "movie":
+            return "Movie"
+        if marker == "series":
+            return "Series"
+        return None
+
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
-        context = text[max(0, match.start() - 1200):min(len(text), match.end() + 2500)]
-        is_live = bool(re.search(r"\bLive(?:\b|\s)", context, re.I))
-        is_movie = bool(re.search(r"\bMovie(?:\b|\s)", context, re.I))
-        is_series = bool(re.search(r"\bSeries(?:\b|\s|\d)", context, re.I))
-        is_telefilm = bool(re.search(r"\bTelefilms?\b", context, re.I))
-        if is_live or not (is_movie or is_series or is_telefilm):
+        content_type = card_type(anchor)
+        if not content_type or content_type == "Live":
             continue
-        if is_telefilm and not is_series:
-            content_type = "Telefilm"
-        elif is_movie and not is_series:
-            content_type = "Movie"
-        else:
-            content_type = "Series"
-
         title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
         title = re.sub(r"^\s*13\+\s*", "", title, flags=re.I)
         title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
+        title = re.sub(r"\s+(?:Series|Movie|Live)\s*$", "", title, flags=re.I).strip()
 
         image = None
-        image_patterns = [
+        local_context = text[max(0, match.start() - 1200):match.end()]
+        for image_pattern in [
             r'<img[^>]+(?:src|data-src)=["\']([^"\']+)["\']',
             r'background-image\s*:\s*url\((["\']?)([^)"\']+)\\1\)',
-        ]
-        local_context = text[max(0, match.start() - 1200):match.end()]
-        for image_pattern in image_patterns:
+        ]:
             image_match = re.search(image_pattern, local_context, re.I | re.S)
             if image_match:
                 image = image_match.group(2) if len(image_match.groups()) > 1 else image_match.group(1)
                 image = urljoin(source_url, image)
                 break
 
-        found.setdefault(series_id, {
+        item = found.setdefault(series_id, {
             "id": series_id,
             "title": title or series_id,
             "url": urljoin(source_url, "/title/" + series_id),
             "image": image,
             "content_type": content_type,
+            "catalogue_genres": [],
         })
+        item["content_type"] = content_type
+        if image and not item.get("image"):
+            item["image"] = image
+        if hint and hint_lower not in {"tv shows", "shows", "all"}:
+            genres = item.setdefault("catalogue_genres", [])
+            if hint not in genres:
+                genres.append(hint)
     return list(found.values())
-
 
 def _internal_links(text: str, source_url: str) -> tuple[set[str], set[str]]:
     """Return ARY genre/category pages and title pages linked by a catalogue page."""
@@ -334,6 +350,15 @@ def _discovery_page_variants(url: str) -> list[str]:
     ]
 
 
+
+def _catalogue_heading(text: str) -> str:
+    """Extract the visible ARY catalogue heading."""
+    match = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.I | re.S)
+    if not match:
+        return ""
+    value = html.unescape(re.sub(r"<[^>]+>", " ", match.group(1)))
+    return re.sub(r"\s+", " ", value).strip()
+
 def discover_series(force: bool = False) -> list[dict[str, Any]]:
     with CACHE_LOCK:
         if not force and CACHE.get("series"):
@@ -358,7 +383,8 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
             print("[DISCOVERY]", url, "failed:", exc, flush=True)
             continue
 
-        for item in _series_from_html(html, url):
+        page_hint = _catalogue_heading(html)
+        for item in _series_from_html(html, url, page_hint):
             found[item["id"]] = item
 
         genre_links, title_links = _internal_links(html, url)
@@ -386,7 +412,7 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
             break
         try:
             html = http_text(url, timeout=20)
-            for item in _series_from_html(html, url):
+            for item in _series_from_html(html, url, ""):
                 found[item["id"]] = item
         except Exception as exc:
             print("[DISCOVERY-TITLE]", url, "failed:", exc, flush=True)
@@ -460,21 +486,45 @@ def series_details(series_id: str, force: bool = False) -> dict[str, Any]:
             return []
         return [x.strip() for x in re.split(r"[,|•]", value) if x.strip()][:12]
 
-    genres = json_array("genres") or nearby("Genres") or nearby("Genre")
+    # ARY exposes human-readable metadata on the title page, e.g.
+    # "Genres Drama, Family" or "Genres Telefilm, Telefilms".
+    visible = html.unescape(re.sub(r"<[^>]+>", " ", page))
+    visible = re.sub(r"\s+", " ", visible).strip()
+    genre_text = ""
+    genre_match = re.search(
+        r"\bGenres?\s+(.{1,240}?)(?=\s+(?:Age Rating|Audio|Cast|Starring|You Might Also Like|Trending Now)\b|$)",
+        visible,
+        re.I,
+    )
+    if genre_match:
+        genre_text = genre_match.group(1).strip(" .:-")
+    visible_genres = [x.strip() for x in re.split(r"[,|•]", genre_text) if x.strip() and len(x.strip()) < 80]
+    genres = visible_genres or json_array("genres") or nearby("Genres") or nearby("Genre")
+    catalogue_genres = list(base.get("catalogue_genres") or [])
+    for g in catalogue_genres:
+        if g and g not in genres:
+            genres.append(g)
     cast = json_array("cast") or json_array("actors") or nearby("Cast") or nearby("Starring") or nearby("Actors")
 
     # ARY distinguishes normal serials (Series), TV/reality programming
     # (Show), movies and telefilms on title pages. Keep that distinction in
     # the local catalogue instead of collapsing every episodic title into
     # "Series".
-    type_context = page[:120000]
+    type_context = visible[:120000]
     detected_type = base.get("content_type") or "Series"
-    if re.search(r"\b\d+\s+Episodes?\s+Show\b", type_context, re.I):
-        detected_type = "Show"
-    elif re.search(r"\b\d+\s+Episodes?\s+Telefilm\b", type_context, re.I):
-        detected_type = "Telefilm"
-    elif re.search(r"\b\d+\s+Episodes?\s+Series\b", type_context, re.I):
-        detected_type = "Series"
+    header_type = re.search(
+        r"\b(?:\d{4}\s+)?(?:\d+\s+Episodes?\s+)?(Telefilm|Series|Show|Movie)\b",
+        type_context,
+        re.I,
+    )
+    if header_type:
+        raw_type = header_type.group(1).lower()
+        detected_type = {
+            "telefilm": "Telefilm",
+            "series": "Series",
+            "show": "Show",
+            "movie": "Movie",
+        }[raw_type]
     elif re.search(r"\bTelefilms?\b", " ".join(genres), re.I):
         detected_type = "Telefilm"
     elif re.search(r"\bTV Shows?\b|\bReality\b|\bGame Show\b", " ".join(genres), re.I):
