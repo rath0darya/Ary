@@ -264,9 +264,15 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
         is_live = bool(re.search(r"\bLive(?:\b|\s)", context, re.I))
         is_movie = bool(re.search(r"\bMovie(?:\b|\s)", context, re.I))
         is_series = bool(re.search(r"\bSeries(?:\b|\s|\d)", context, re.I))
-        if is_live or not (is_movie or is_series):
+        is_telefilm = bool(re.search(r"\bTelefilms?\b", context, re.I))
+        if is_live or not (is_movie or is_series or is_telefilm):
             continue
-        content_type = "Movie" if is_movie and not is_series else "Series"
+        if is_telefilm and not is_series:
+            content_type = "Telefilm"
+        elif is_movie and not is_series:
+            content_type = "Movie"
+        else:
+            content_type = "Series"
 
         title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
         title = re.sub(r"^\s*13\+\s*", "", title, flags=re.I)
