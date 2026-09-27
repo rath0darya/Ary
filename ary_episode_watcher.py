@@ -365,10 +365,9 @@ def inspect_episode_stream(episode_id: str) -> dict[str, Any]:
 
 def safe_filename(value: str) -> str:
     value = re.sub(r'[\\/:*?"<>|]+', "-", str(value))
-    value = re.sub(r"[^A-Za-z0-9._ -]+", "-", value)
-    value = re.sub(r"\\s+", " ", value).strip(" .-")
+    value = re.sub(r"[^A-Za-z0-9]+", "-", value)
+    value = re.sub(r"-+", "-", value).strip("-")
     return value[:180] or "episode"
-
 
 def _job_update(job_id: str, **values: Any):
     with JOBS_LOCK:
