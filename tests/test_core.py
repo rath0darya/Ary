@@ -4,6 +4,7 @@ from ary_episode_watcher import (
     choose_best_variant,
     parse_hls_master,
     safe_filename,
+    _series_from_html,
 )
 
 
@@ -26,6 +27,11 @@ class CoreTests(unittest.TestCase):
             {"width": 3840, "height": 2160, "bandwidth": 1000000, "uri": "2160"},
         ]
         self.assertEqual(choose_best_variant(variants)["height"], 2160)
+
+    def test_series_discovery_parser(self):
+        html = '<a href="/title/abc123">Example Drama</a><span>Series42 Ep</span>'
+        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
+        self.assertEqual(result[0]["id"], "abc123")
 
     def test_safe_filename(self):
         self.assertEqual(
