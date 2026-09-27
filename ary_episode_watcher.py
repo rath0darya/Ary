@@ -37,12 +37,22 @@ DISCOVERY_URLS = [
     if item.strip()
 ]
 
-CACHE_DIR = Path(os.environ.get("ARY_CACHE_DIR", str(Path.home() / ".ary-episode-watcher")))
+CACHE_DIR = Path(os.environ.get(
+    "ARY_CACHE_DIR",
+    str(Path.home() / ".ary-episode-watcher"),
+))
 API_KEY_FILE = CACHE_DIR / "api-key.txt"
-DOWNLOAD_DIR = Path(os.environ.get("ARY_DOWNLOAD_DIR", "/sdcard/Movies/ARY Episode Watcher"))
+DOWNLOAD_DIR = Path(os.environ.get(
+    "ARY_DOWNLOAD_DIR",
+    "/sdcard/Movies/ARY Episode Watcher",
+))
 HOST = os.environ.get("ARYWEB_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ARYWEB_PORT", "8787"))
-USER_AGENT = os.environ.get("ARY_USER_AGENT", "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36")
+USER_AGENT = os.environ.get(
+    "ARY_USER_AGENT",
+    "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36",
+)
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.RLock()
@@ -84,7 +94,7 @@ def http_text(url: str, headers: dict[str, str] | None = None, timeout: int = 25
 
 def extract_json_value(text: str, names: list[str]) -> str | None:
     for name in names:
-        pattern = r"""["']""" + re.escape(name) + r"""["']s*:s*["']([^"']+)["']"""
+        pattern = r"""["']""" + re.escape(name) + r"""["']\s*:\s*["']([^"']+)["']"""
         match = re.search(pattern, text, re.I)
         if match:
             return match.group(1).strip()
@@ -101,11 +111,27 @@ def get_api_key() -> str | None:
             return key
     except OSError:
         pass
-    return None
+    try:
+        page = http_text(ARY_WEB, timeout=15)
+    except Exception:
+        return None
+    key = extract_json_value(page, ["apiKey", "api_key", "x-api-key", "X-API-Key"])
+    if key:
+        try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            API_KEY_FILE.write_text(key + "\n", encoding="utf-8")
+            os.chmod(API_KEY_FILE, 0o600)
+        except OSError:
+            pass
+    return key
 
 
 def api_headers() -> dict[str, str]:
-    headers = {"Referer": ARY_WEB + "/", "Origin": ARY_WEB, "Accept": "application/json, text/plain, */*"}
+    headers = {
+        "Referer": ARY_WEB + "/",
+        "Origin": ARY_WEB,
+        "Accept": "application/json, text/plain, */*",
+    }
     key = get_api_key()
     if key:
         headers["x-api-key"] = key
@@ -121,15 +147,39 @@ def api_json(path: str, timeout: int = 25) -> Any:
 
 
 def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
-    number = item.get("episodeNumber") or item.get("episode_number") or item.get("number") or item.get("episode") or item.get("no")
-    title = item.get("title") or item.get("name") or item.get("episodeTitle") or (f"Episode {number}" if number is not None else "Episode")
-    episode_id = item.get("id") or item.get("_id") or item.get("episodeId") or item.get("episode_id")
+    number = (
+        item.get("episodeNumber")
+        or item.get("episode_number")
+        or item.get("videoEpNumber")
+        or item.get("number")
+        or item.get("episode")
+        or item.get("no")
+    )
+    title = (
+        item.get("title")
+        or item.get("name")
+        or item.get("episodeTitle")
+        or (f"Episode {number}" if number is not None else "Episode")
+    )
+    episode_id = (
+        item.get("id")
+        or item.get("_id")
+        or item.get("episodeId")
+        or item.get("episode_id")
+    )
     return {
         "id": str(episode_id) if episode_id is not None else "",
         "number": number,
         "title": str(title),
         "date": item.get("date") or item.get("publishedAt") or item.get("createdAt"),
-        "thumbnail": item.get("thumbnail") or item.get("thumbnailUrl") or item.get("image") or item.get("imageUrl") or item.get("poster") or item.get("cover"),
+        "thumbnail": (
+            item.get("thumbnail")
+            or item.get("thumbnailUrl")
+            or item.get("image")
+            or item.get("imageUrl")
+            or item.get("poster")
+            or item.get("cover")
+        ),
         "raw": item,
     }
 
@@ -140,21 +190,36 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
         context = text[max(0, match.start() - 1200):min(len(text), match.end() + 2500)]
-        if re.search(r"Live(?:|s)", context, re.I):
+        if re.search(r"\bLive(?:\b|\s)", context, re.I):
             continue
-        if re.search(r"Movie(?:|s)", context, re.I) and not re.search(r"Series(?:|s|d)", context, re.I):
+        if re.search(r"\bMovie(?:\b|\s)", context, re.I) and not re.search(r"\bSeries(?:\b|\s|\d)", context, re.I):
             continue
-        if not re.search(r"Series(?:|s|d)", context, re.I):
+        if not re.search(r"\bSeries(?:\b|\s|\d)", context, re.I):
             continue
-        title = re.sub(r"s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
-        title = re.sub(r"^s*13+s*", "", title, flags=re.I)
-        title = re.sub(r"s*(?:Series|Movie|Live)s*d+.*$", "", title, flags=re.I).strip()
+
+        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"^\s*13\+\s*", "", title, flags=re.I)
+        title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
+
         image = None
+        image_patterns = [
+            r'<img[^>]+(?:src|data-src)=["\']([^"\']+)["\']',
+            r'background-image\s*:\s*url\((["\']?)([^)"\']+)\\1\)',
+        ]
         local_context = text[max(0, match.start() - 1200):match.end()]
-        image_match = re.search(r'<img[^>]+(?:src|data-src)=["']([^"']+)["']', local_context, re.I | re.S)
-        if image_match:
-            image = urljoin(source_url, image_match.group(1))
-        found.setdefault(series_id, {"id": series_id, "title": title or series_id, "url": urljoin(source_url, "/title/" + series_id), "image": image})
+        for image_pattern in image_patterns:
+            image_match = re.search(image_pattern, local_context, re.I | re.S)
+            if image_match:
+                image = image_match.group(2) if len(image_match.groups()) > 1 else image_match.group(1)
+                image = urljoin(source_url, image)
+                break
+
+        found.setdefault(series_id, {
+            "id": series_id,
+            "title": title or series_id,
+            "url": urljoin(source_url, "/title/" + series_id),
+            "image": image,
+        })
     return list(found.values())
 
 
@@ -180,38 +245,53 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
 
 def _html_meta(text: str, name: str) -> str | None:
     patterns = [
-        r'<meta[^>]+(?:name|property)=["\']' + re.escape(name) + r'["\'][^>]+content=["\']([^"\']+)',
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:name|property)=["\']' + re.escape(name) + r'["\']',
+        r'<meta[^>]+(?:name|property)=["\\\']' + re.escape(name) + r'["\\\'][^>]+content=["\\\']([^"\\\']+)',
+        r'<meta[^>]+content=["\\\']([^"\\\']+)["\\\'][^>]+(?:name|property)=["\\\']' + re.escape(name) + r'["\\\']',
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.I | re.S)
         if match:
-            return re.sub(r"s+", " ", match.group(1)).strip()
+            return re.sub(r"\s+", " ", match.group(1)).strip()
     return None
 
 
 def series_details(series_id: str) -> dict[str, Any]:
     series_id = series_id.strip()
-    base = next((x for x in discover_series() if x["id"] == series_id), {"id": series_id, "title": series_id, "url": urljoin(ARY_WEB, "/title/" + series_id)})
+    base = next(
+        (x for x in discover_series() if x["id"] == series_id),
+        {"id": series_id, "title": series_id, "url": urljoin(ARY_WEB, "/title/" + series_id)},
+    )
     try:
         page = http_text(base.get("url") or urljoin(ARY_WEB, "/title/" + series_id), timeout=20)
     except Exception:
         return {**base, "year": None, "genres": [], "description": "", "cast": []}
+
     title = _html_meta(page, "og:title") or base.get("title") or series_id
     description = _html_meta(page, "og:description") or _html_meta(page, "description") or ""
     image = _html_meta(page, "og:image") or base.get("image")
-    year_match = re.search(r"(19d{2}|20d{2})", page)
+    year_match = re.search(r"\b(19\d{2}|20\d{2})\b", page)
     year = int(year_match.group(1)) if year_match else None
+
     def nearby(label: str) -> list[str]:
-        match = re.search(r"(?is)" + re.escape(label) + r"s*[:-]?s*([^<]{0,300})", page)
+        match = re.search(r"(?is)" + re.escape(label) + r"\s*[:\-]?\s*([^<]{0,300})", page)
         if not match:
             return []
-        value = re.sub(r"s+", " ", re.sub(r"<[^>]+>", " ", match.group(1))).strip()
+        value = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", match.group(1))).strip()
         return [x.strip() for x in re.split(r"[,|•]", value) if x.strip()][:12]
+
     genres = nearby("Genres") or nearby("Genre")
     cast = nearby("Cast") or nearby("Starring") or nearby("Actors")
-    clean_title = re.sub(r"s*|.*$", "", title).strip()
-    return {**base, "title": clean_title or base.get("title") or series_id, "image": image, "backdrop": image, "year": year, "genres": genres, "description": description, "cast": cast}
+    clean_title = re.sub(r"\s*\|.*$", "", title).strip()
+    return {
+        **base,
+        "title": clean_title or base.get("title") or series_id,
+        "image": image,
+        "backdrop": image,
+        "year": year,
+        "genres": genres,
+        "description": description,
+        "cast": cast,
+    }
 
 
 def _series_key(series_id: str) -> str:
@@ -227,21 +307,29 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
         if not force and CACHE.get(key):
             return CACHE[key]
 
-    base = next((item for item in discover_series() if item["id"] == series_id), {"id": series_id, "url": urljoin(ARY_WEB, "/title/" + series_id)})
+    base = next(
+        (item for item in discover_series() if item["id"] == series_id),
+        {"id": series_id, "url": urljoin(ARY_WEB, "/title/" + series_id)},
+    )
     page_url = base.get("url") or urljoin(ARY_WEB, "/title/" + series_id)
     html = http_text(page_url, {"Referer": ARY_WEB + "/"}, timeout=30)
 
     marker = '"episodes":['
     start = html.find(marker)
+    escaped = False
     if start < 0:
-        marker = '\"episodes\":['
+        marker = '\\"episodes\\":['
         start = html.find(marker)
+        escaped = start >= 0
     if start < 0:
         raise RuntimeError("No episode catalogue was found on the ARY title page.")
 
     array_start = html.find("[", start)
+    catalogue_text = html[array_start:]
+    if escaped:
+        catalogue_text = catalogue_text.replace('\\"', '"')
     try:
-        raw_items, _ = json.JSONDecoder().raw_decode(html[array_start:])
+        raw_items, _ = json.JSONDecoder().raw_decode(catalogue_text)
     except json.JSONDecodeError as exc:
         raise RuntimeError("Unable to parse the ARY episode catalogue.") from exc
     if not isinstance(raw_items, list):
@@ -272,7 +360,14 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             seen.add(item["id"])
             episodes.append(item)
 
-    episodes.sort(key=lambda x: int(str(x["number"]).strip()) if str(x["number"]).strip().isdigit() else -1, reverse=True)
+    episodes.sort(
+        key=lambda x: (
+            int(str(x["number"]).strip())
+            if str(x["number"]).strip().isdigit()
+            else -1
+        ),
+        reverse=True,
+    )
     with CACHE_LOCK:
         CACHE[key] = episodes
     return episodes
@@ -318,15 +413,28 @@ def parse_hls_master(text: str, base_url: str) -> dict[str, Any]:
 
 
 def choose_best_variant(variants: list[dict[str, Any]]) -> dict[str, Any] | None:
-    usable = [item for item in variants if item.get("uri") and item.get("height")]
+    usable = [
+        item for item in variants
+        if item.get("uri") and item.get("height")
+    ]
     if not usable:
         return None
-    return max(usable, key=lambda item: (item.get("height") or 0, item.get("width") or 0, item.get("bandwidth") or 0, item.get("average_bandwidth") or 0))
+    return max(
+        usable,
+        key=lambda item: (
+            item.get("height") or 0,
+            item.get("width") or 0,
+            item.get("bandwidth") or 0,
+            item.get("average_bandwidth") or 0,
+        ),
+    )
 
 
 def _find_video_source(value: Any) -> str | None:
     if isinstance(value, str):
-        return value if value.startswith(("http://", "https://")) else None
+        if value.startswith(("http://", "https://")):
+            return value
+        return None
     if isinstance(value, dict):
         for key in ("videoSource", "video_source", "url", "uri", "src", "source"):
             found = _find_video_source(value.get(key))
@@ -358,15 +466,18 @@ def inspect_episode_stream(episode_id: str, source_hint: str | None = None) -> d
     playlist = http_text(source, {"Referer": ARY_WEB + "/"}, timeout=30)
     parsed = parse_hls_master(playlist, source)
     best = choose_best_variant(parsed["variants"])
-    return {"source": source, "variants": parsed["variants"], "best": best}
+    return {
+        "source": source,
+        "variants": parsed["variants"],
+        "best": best,
+    }
 
 
 def safe_filename(value: str) -> str:
-    value = re.sub(r'[\/:*?"<>|]+', "-", str(value))
+    value = re.sub(r'[\\/:*?"<>|]+', "-", str(value))
     value = re.sub(r"[^A-Za-z0-9]+", "-", value)
     value = re.sub(r"-+", "-", value).strip("-")
     return value[:180] or "episode"
-
 
 def _job_update(job_id: str, **values: Any):
     with JOBS_LOCK:
@@ -377,12 +488,22 @@ def _job_update(job_id: str, **values: Any):
 def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, resolution: str):
     _job_update(job_id, state="downloading", quality=quality, resolution=resolution)
     output.parent.mkdir(parents=True, exist_ok=True)
-    command = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-headers", "Referer: " + ARY_WEB + "/
-Origin: " + ARY_WEB + "
-", "-i", stream_url, "-c", "copy", "-movflags", "+faststart", str(output)]
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-headers", "Referer: " + ARY_WEB + "/\r\nOrigin: " + ARY_WEB + "\r\n",
+        "-i", stream_url,
+        "-c", "copy",
+        "-movflags", "+faststart",
+        str(output),
+    ]
     try:
         started = time.time()
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         while True:
             line = process.stderr.readline() if process.stderr else ""
             if not line and process.poll() is not None:
@@ -390,15 +511,24 @@ Origin: " + ARY_WEB + "
             if output.exists():
                 size = output.stat().st_size
                 elapsed = max(0.1, time.time() - started)
-                _job_update(job_id, size=size, speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s")
+                _job_update(
+                    job_id,
+                    size=size,
+                    speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s",
+                )
         code = process.wait()
         if code != 0:
             raise RuntimeError((process.stderr.read() if process.stderr else "").strip() or f"ffmpeg exited with {code}")
         if not output.exists() or output.stat().st_size == 0:
             raise RuntimeError("FFmpeg completed without creating a file.")
+
         ffprobe = shutil.which("ffprobe")
         if ffprobe:
-            check = subprocess.run([ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", str(output)], capture_output=True, text=True, check=False)
+            check = subprocess.run(
+                [ffprobe, "-v", "error", "-select_streams", "v:0",
+                 "-show_entries", "stream=width,height", "-of", "json", str(output)],
+                capture_output=True, text=True, check=False,
+            )
             if check.returncode != 0:
                 raise RuntimeError("ffprobe could not validate the downloaded file.")
         size = output.stat().st_size
@@ -407,12 +537,19 @@ Origin: " + ARY_WEB + "
         _job_update(job_id, state="error", error=str(exc), filename=str(output))
 
 
-def start_download(series_id: str, episode_id: str, episode_number: Any = None, episode_title: str = "", series_name: str = "Series") -> dict[str, Any]:
+def start_download(
+    series_id: str,
+    episode_id: str,
+    episode_number: Any = None,
+    episode_title: str = "",
+    series_name: str = "Series",
+) -> dict[str, Any]:
     episode = find_episode(series_id, episode_id)
     info = inspect_episode_stream(episode_id, episode.get("stream"))
     best = info.get("best")
     if not best:
         raise RuntimeError("No usable HLS variant was advertised.")
+
     quality = f'{best.get("height", "?")}p'
     resolution = f'{best.get("width", "?")}x{best.get("height", "?")}'
     series_label = series_name or "Series"
@@ -421,10 +558,30 @@ def start_download(series_id: str, episode_id: str, episode_number: Any = None, 
     filename = safe_filename(f"{series_label} - Episode {ep_label or 'Unknown'} - {title}") + ".mp4"
     output = DOWNLOAD_DIR / filename
     job_id = uuid.uuid4().hex
-    job = {"id": job_id, "series_id": series_id, "series_name": series_label, "episode_id": episode_id, "episode_number": ep_label, "episode_title": title, "state": "queued", "percent": 0, "size": 0, "quality": quality, "resolution": resolution, "filename": str(output), "error": "", "created": time.time()}
+
+    job = {
+        "id": job_id,
+        "series_id": series_id,
+        "series_name": series_label,
+        "episode_id": episode_id,
+        "episode_number": ep_label,
+        "episode_title": title,
+        "state": "queued",
+        "percent": 0,
+        "size": 0,
+        "quality": quality,
+        "resolution": resolution,
+        "filename": str(output),
+        "error": "",
+        "created": time.time(),
+    }
     with JOBS_LOCK:
         JOBS[job_id] = job
-    threading.Thread(target=_download_worker, args=(job_id, best["uri"], output, quality, resolution), daemon=True).start()
+    threading.Thread(
+        target=_download_worker,
+        args=(job_id, best["uri"], output, quality, resolution),
+        daemon=True,
+    ).start()
     return job
 
 
@@ -438,44 +595,73 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+
         try:
             if path in ("/", "/index.html"):
                 file = WEB_DIR / "index.html"
                 if not file.exists():
                     return json_response(self, {"ok": False, "error": "Web UI not found."}, 500)
                 return html_response(self, file.read_bytes())
+
             if path == "/api/health":
-                return json_response(self, {"ok": True, "host": HOST, "port": PORT, "ffmpeg": shutil.which("ffmpeg") is not None, "ffprobe": shutil.which("ffprobe") is not None, "download_dir": str(DOWNLOAD_DIR)})
+                return json_response(self, {
+                    "ok": True,
+                    "host": HOST,
+                    "port": PORT,
+                    "ffmpeg": shutil.which("ffmpeg") is not None,
+                    "ffprobe": shutil.which("ffprobe") is not None,
+                    "download_dir": str(DOWNLOAD_DIR),
+                })
+
             if path == "/api/series":
-                return json_response(self, {"ok": True, "series": discover_series(query.get("refresh", ["0"])[0] == "1")})
+                return json_response(self, {
+                    "ok": True,
+                    "series": discover_series(query.get("refresh", ["0"])[0] == "1"),
+                })
+
             if path == "/api/series/detail":
                 sid = query.get("series", [""])[0].strip()
                 if not sid:
                     return json_response(self, {"ok": False, "error": "series is required"}, 400)
                 return json_response(self, {"ok": True, "series": series_details(sid)})
+
             if path == "/api/episodes":
                 sid = query.get("series", [""])[0].strip()
                 if not sid:
                     return json_response(self, {"ok": False, "error": "series is required"}, 400)
-                return json_response(self, {"ok": True, "series_id": sid, "episodes": catalogue(sid, query.get("refresh", ["0"])[0] == "1")})
+                return json_response(self, {
+                    "ok": True,
+                    "series_id": sid,
+                    "episodes": catalogue(sid, query.get("refresh", ["0"])[0] == "1"),
+                })
+
             if path == "/api/stream-info":
                 sid = query.get("series", [""])[0].strip()
                 eid = query.get("episode", [""])[0].strip()
                 if not sid or not eid:
                     return json_response(self, {"ok": False, "error": "series and episode are required"}, 400)
                 episode = find_episode(sid, eid)
-                return json_response(self, {"ok": True, "episode": episode, "stream": inspect_episode_stream(eid, episode.get("stream"))})
+                return json_response(self, {
+                    "ok": True,
+                    "episode": episode,
+                    "stream": inspect_episode_stream(eid, episode.get("stream")),
+                })
+
             if path == "/api/download":
                 sid = query.get("series", [""])[0].strip()
                 eid = query.get("episode", [""])[0].strip()
                 if not sid or not eid:
                     return json_response(self, {"ok": False, "error": "series and episode are required"}, 400)
                 ep = find_episode(sid, eid)
-                series_name = next((item["title"] for item in discover_series() if item["id"] == sid), sid)
+                series_name = next(
+                    (item["title"] for item in discover_series() if item["id"] == sid),
+                    sid,
+                )
                 number = query.get("number", [ep.get("number")])[0]
                 title = query.get("title", [ep.get("title", "")])[0]
                 job = start_download(sid, eid, number, title, series_name)
                 return json_response(self, {"ok": True, "job": job})
+
             if path.startswith("/api/download/file/"):
                 job_id = path.rsplit("/", 1)[-1]
                 with JOBS_LOCK:
@@ -493,6 +679,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(data)
                 return
+
             if path.startswith("/api/download/"):
                 job_id = path.rsplit("/", 1)[-1]
                 with JOBS_LOCK:
@@ -500,6 +687,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not job:
                     return json_response(self, {"ok": False, "error": "Job not found"}, 404)
                 return json_response(self, {"ok": True, "job": job})
+
             return json_response(self, {"ok": False, "error": "Not found"}, 404)
         except Exception as exc:
             return json_response(self, {"ok": False, "error": str(exc)}, 500)
@@ -514,8 +702,7 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("
-Stopping ARY Watcher...", flush=True)
+        print("\nStopping ARY Watcher...", flush=True)
     finally:
         server.server_close()
 
