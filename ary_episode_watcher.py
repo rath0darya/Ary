@@ -171,7 +171,14 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
         "number": number,
         "title": str(title),
         "date": item.get("date") or item.get("publishedAt") or item.get("createdAt"),
-        "thumbnail": item.get("thumbnail") or item.get("image") or item.get("poster"),
+        "thumbnail": (
+            item.get("thumbnail")
+            or item.get("thumbnailUrl")
+            or item.get("image")
+            or item.get("imageUrl")
+            or item.get("poster")
+            or item.get("cover")
+        ),
         "raw": item,
     }
 
@@ -181,15 +188,36 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     pattern = r"""href=["']/?title/([A-Za-z0-9]+)["'][^>]*>(.*?)</a>"""
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
-        context = text[max(0, match.start() - 700):min(len(text), match.end() + 1200)]
-        if not re.search(r'\bSeries(?:\b|\d)', context, re.I):
+        context = text[max(0, match.start() - 1200):min(len(text), match.end() + 2500)]
+        if re.search(r"\\bLive(?:\\b|\\s)", context, re.I):
             continue
-        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
-        title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
+        if re.search(r"\\bMovie(?:\\b|\\s)", context, re.I) and not re.search(r"\\bSeries(?:\\b|\\s|\\d)", context, re.I):
+            continue
+        if not re.search(r"\\bSeries(?:\\b|\\s|\\d)", context, re.I):
+            continue
+
+        title = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"^\\s*13\\+\\s*", "", title, flags=re.I)
+        title = re.sub(r"\\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
+
+        image = None
+        image_patterns = [
+            r'<img[^>]+(?:src|data-src)=["\']([^"\']+)["\']',
+            r'background-image\\s*:\\s*url\\((["\']?)([^)"\']+)\\1\\)',
+        ]
+        local_context = text[max(0, match.start() - 1200):match.end()]
+        for image_pattern in image_patterns:
+            image_match = re.search(image_pattern, local_context, re.I | re.S)
+            if image_match:
+                image = image_match.group(2) if len(image_match.groups()) > 1 else image_match.group(1)
+                image = urljoin(source_url, image)
+                break
+
         found.setdefault(series_id, {
             "id": series_id,
             "title": title or series_id,
             "url": urljoin(source_url, "/title/" + series_id),
+            "image": image,
         })
     return list(found.values())
 
@@ -380,7 +408,7 @@ def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, r
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", stream_url,
+        "-headers", "Referer: " + ARY_WEB + "/\\r\\nOrigin: " + ARY_WEB + "\\r\\n",
         "-c", "copy",
         "-movflags", "+faststart",
         str(output),
