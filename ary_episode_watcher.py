@@ -189,16 +189,16 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
         context = text[max(0, match.start() - 1200):min(len(text), match.end() + 2500)]
-        if re.search(r"\\bLive(?:\\b|\\s)", context, re.I):
+        if re.search(r"\bLive(?:\\b|\\s)", context, re.I):
             continue
-        if re.search(r"\\bMovie(?:\\b|\\s)", context, re.I) and not re.search(r"\\bSeries(?:\\b|\\s|\\d)", context, re.I):
+        if re.search(r"\bMovie(?:\\b|\\s)", context, re.I) and not re.search(r"\bSeries(?:\\b|\\s|\\d)", context, re.I):
             continue
-        if not re.search(r"\\bSeries(?:\\b|\\s|\\d)", context, re.I):
+        if not re.search(r"\bSeries(?:\\b|\\s|\\d)", context, re.I):
             continue
 
-        title = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
+        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
         title = re.sub(r"^\\s*13\\+\\s*", "", title, flags=re.I)
-        title = re.sub(r"\\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
+        title = re.sub(r"\s*(?:Series|Movie|Live)\\s*\\d+.*$", "", title, flags=re.I).strip()
 
         image = None
         image_patterns = [
