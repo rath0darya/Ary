@@ -11,7 +11,9 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 - Downloads with FFmpeg stream copy; no quality-lowering re-encode.
 - Verifies the resulting MP4 with ffprobe.
 - Background download jobs with progress/status API.
-- Responsive dark web UI.
+- Netflix/Prime-style streaming catalogue UI with horizontal content rows, series detail pages, episode cards, and an in-page HLS player.
+- Clickable ARY Plus fallback links for every discovered series.
+- Browser HLS playback using HLS.js when the source permits browser playback.
 - No external AI/API service.
 - API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
 - Designed for Android/Termux.
@@ -46,9 +48,10 @@ For a custom port:
 ## API
 
 - GET /api/health
-- GET /api/episodes
-- GET /api/stream-info?episode=<id>
-- GET /api/download?episode=<id>&number=<n>&title=<title>
+- GET /api/series
+- GET /api/episodes?series=<series-id>
+- GET /api/stream-info?series=<series-id>&episode=<episode-id>
+- GET /api/download?series=<series-id>&episode=<episode-id>&number=<n>&title=<title>
 - GET /api/download/<job-id>
 
 The download endpoint intentionally has no quality parameter. The server chooses the highest HLS variant advertised by the source.
