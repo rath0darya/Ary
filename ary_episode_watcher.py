@@ -178,7 +178,7 @@ def normalise_episode(item: dict[str, Any]) -> dict[str, Any]:
 
 def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
-    pattern = r'href=["\\']/?title/([A-Za-z0-9]+)["\\'][^>]*>(.*?)</a>'
+    pattern = r"""href=["']/?title/([A-Za-z0-9]+)["'][^>]*>(.*?)</a>"""
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
         context = text[max(0, match.start() - 700):min(len(text), match.end() + 1200)]
