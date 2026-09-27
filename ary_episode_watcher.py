@@ -146,8 +146,14 @@ def image_response(handler: BaseHTTPRequestHandler, target_url: str):
         handler.send_header("Access-Control-Allow-Origin", "*")
         handler.end_headers()
         handler.wfile.write(data)
+    except BrokenPipeError:
+        # Browser cancelled the image request (common with lazy-loaded posters).
+        return None
     except Exception as exc:
-        return json_response(handler, {"ok": False, "error": "Image proxy failed: " + str(exc)}, 502)
+        try:
+            return json_response(handler, {"ok": False, "error": "Image proxy failed: " + str(exc)}, 502)
+        except BrokenPipeError:
+            return None
 
 
 def http_get(url: str, headers: dict[str, str] | None = None, timeout: int = 25) -> bytes:
