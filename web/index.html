@@ -2,57 +2,143 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ARY Episode Watcher</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>ARY+ Stream</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3"></script>
 <style>
-:root{--bg:#08090d;--panel:#11131a;--panel2:#171a23;--text:#f4f6fb;--muted:#9ba3b5;--line:#262b38;--accent:#e31b23;--accent2:#ff4d55;--good:#45d483;--warn:#f4bd54}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% -10%,#291015 0,#08090d 42%);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-button{font:inherit}.wrap{max-width:1180px;margin:auto;padding:24px}
-header{display:flex;justify-content:space-between;gap:18px;align-items:center;margin:10px 0 30px}
-.brand{display:flex;align-items:center;gap:14px}.logo{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--accent),#751018);display:grid;place-items:center;font-weight:900;box-shadow:0 12px 30px #0008}
-h1{font-size:24px;margin:0}.sub{color:var(--muted);font-size:13px;margin-top:4px}
-.actions{display:flex;gap:9px;flex-wrap:wrap}button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:10px 13px;cursor:pointer}button:hover{border-color:#4b5365}button.primary{background:var(--accent);border-color:var(--accent);font-weight:800}button:disabled{opacity:.55;cursor:wait}
-.hero{border:1px solid var(--line);background:linear-gradient(145deg,#151820,#0e1016);border-radius:20px;padding:22px;margin-bottom:18px}
-.hero h2{margin:0 0 7px;font-size:22px}.hero p{margin:0;color:var(--muted);line-height:1.6}
-.toolbar{display:flex;gap:10px;align-items:center;margin:18px 0}.search{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:11px;color:var(--text);padding:12px 14px;outline:none}.count{color:var(--muted);font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.card{background:linear-gradient(160deg,#13161e,#0e1016);border:1px solid var(--line);border-radius:17px;padding:17px;min-width:0}
-.cardtop{display:flex;justify-content:space-between;gap:10px}.ep{font-size:19px;font-weight:850}.id{font-size:10px;color:#687184;margin-top:5px;word-break:break-all}
-.badge{font-size:11px;padding:5px 8px;border:1px solid #343a48;border-radius:999px;color:#cbd1de;height:max-content}
-.meta{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0;color:var(--muted);font-size:12px}.meta span{background:#0a0c11;border:1px solid #242936;padding:5px 8px;border-radius:7px}
-.download{width:100%;margin-top:5px;background:var(--accent);border-color:var(--accent);font-weight:800}
-.inspect{width:100%;margin-top:8px}
-.job{margin-top:10px;border:1px solid #293041;background:#0b0d12;border-radius:11px;padding:10px;font-size:12px;display:none}.job.show{display:block}.bar{height:6px;background:#202532;border-radius:99px;overflow:hidden;margin:8px 0}.fill{height:100%;width:0;background:var(--good);transition:width .3s}
-.empty,.loading{padding:35px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:15px;grid-column:1/-1}
-.modal{position:fixed;inset:0;background:#000b;display:none;place-items:center;padding:18px;z-index:5}.modal.open{display:grid}.dialog{max-width:760px;width:100%;max-height:88vh;overflow:auto;background:#11141c;border:1px solid var(--line);border-radius:18px;padding:20px}.dialoghead{display:flex;justify-content:space-between;gap:15px;align-items:center}.dialog h3{margin:0}.close{border-radius:50%;width:38px;height:38px;padding:0}.variant{border:1px solid var(--line);background:#0b0d12;border-radius:11px;padding:12px;margin-top:9px}.variant.best{border-color:var(--accent)}.row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.muted{color:var(--muted)}.small{font-size:12px;word-break:break-all}
-.toast{position:fixed;right:18px;bottom:18px;background:#171a23;border:1px solid var(--line);padding:12px 15px;border-radius:11px;display:none;z-index:8;max-width:360px}.toast.show{display:block}
-@media(max-width:650px){.wrap{padding:15px}header{align-items:flex-start;flex-direction:column}.hero{padding:17px}.grid{grid-template-columns:1fr}}
+:root{--bg:#050505;--surface:#101010;--surface2:#171717;--text:#f5f5f5;--muted:#a5a5a5;--line:#292929;--red:#e50914;--red2:#ff3340}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}
+button,input{font:inherit}button{cursor:pointer}.topbar{position:sticky;top:0;z-index:20;height:68px;padding:0 4vw;display:flex;align-items:center;gap:30px;background:linear-gradient(#050505f5,#050505d9,transparent)}
+.brand{font-size:25px;font-weight:950;letter-spacing:-1px;color:#fff}.brand span{color:var(--red)}
+.nav{display:flex;gap:22px;color:#cfcfcf;font-size:14px}.nav button{background:none;border:0;color:inherit;padding:0}.nav button:hover{color:#fff}
+.top-actions{margin-left:auto;display:flex;gap:10px;align-items:center}.search{width:min(300px,42vw);background:#111d;border:1px solid #ffffff20;color:#fff;border-radius:6px;padding:9px 12px;outline:0}.iconbtn{background:#151515;border:1px solid #292929;color:#fff;border-radius:6px;padding:9px 12px}
+.hero{min-height:470px;margin-top:-68px;display:flex;align-items:end;padding:80px 4vw 55px;background:linear-gradient(90deg,#050505 0%,#050505dc 35%,#05050545 70%,#050505 100%),linear-gradient(0deg,#050505 0%,transparent 45%),radial-gradient(circle at 75% 25%,#68141b 0,#141414 35%,#050505 72%)}
+.hero-content{max-width:650px}.eyebrow{font-size:13px;color:#d8d8d8;margin-bottom:12px}.hero h1{font-size:clamp(36px,6vw,70px);line-height:.98;margin:0 0 17px;letter-spacing:-2px}.hero p{color:#d0d0d0;line-height:1.6;max-width:590px}.hero-actions{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.primary,.secondary{border:0;border-radius:5px;padding:12px 21px;font-weight:800}.primary{background:#fff;color:#000}.secondary{background:#3a3a3acc;color:#fff}.primary:hover{background:#ddd}.secondary:hover{background:#555}
+main{padding:0 4vw 60px}.section{margin:28px 0 38px}.section-title{font-size:20px;font-weight:850;margin:0 0 13px}.row{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 13px;scrollbar-width:thin}.row::-webkit-scrollbar{height:5px}.row::-webkit-scrollbar-thumb{background:#333;border-radius:9px}
+.poster{flex:0 0 185px;border:0;background:transparent;color:#fff;text-align:left;padding:0;position:relative}.poster-img{height:270px;border-radius:5px;overflow:hidden;background:linear-gradient(145deg,#292929,#101010);border:1px solid #252525;position:relative}.poster-img img{width:100%;height:100%;display:block;object-fit:cover}.poster-grad{position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#000c)}.poster-label{position:absolute;left:10px;right:10px;bottom:10px;font-size:14px;font-weight:800;text-shadow:0 2px 6px #000}.poster:hover .poster-img{outline:2px solid #fff;transform:translateY(-2px);transition:.16s}.poster-name{font-size:14px;font-weight:750;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.poster-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.empty,.loading{padding:50px 15px;text-align:center;color:var(--muted)}.error{color:#ff6972}
+.detail{display:none;position:fixed;inset:0;background:#050505;z-index:30;overflow:auto}.detail.open{display:block}.detail-hero{min-height:380px;padding:80px 5vw 40px;display:flex;align-items:end;background:linear-gradient(0deg,#050505 3%,transparent 60%),linear-gradient(90deg,#050505 0%,#050505dd 35%,#05050555 75%),radial-gradient(circle at 75% 20%,#68141b,#101010 45%,#050505 75%)}.detail-copy{max-width:800px}.close{position:absolute;right:25px;top:22px;background:#202020dd;border:0;color:#fff;border-radius:50%;width:40px;height:40px;font-size:25px}.detail h2{font-size:clamp(32px,5vw,60px);margin:0 0 12px}.detail-meta{color:#bbb;font-size:13px;margin-bottom:14px}.detail-desc{color:#ccc;line-height:1.55;max-width:760px}.detail-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.episodes{padding:10px 5vw 60px}.episode-search{width:100%;max-width:440px;background:#151515;border:1px solid #292929;color:#fff;border-radius:5px;padding:11px 13px;margin:10px 0 18px;outline:0}.episode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}.episode{background:#101010;border:1px solid #222;border-radius:7px;overflow:hidden}.episode-thumb{height:150px;background:#1b1b1b;position:relative}.episode-thumb img{width:100%;height:100%;object-fit:cover}.ep-num{position:absolute;left:10px;top:10px;background:#000c;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:850}.episode-body{padding:13px}.episode-title{font-weight:800;line-height:1.3}.episode-desc{color:#999;font-size:12px;line-height:1.45;margin-top:6px;min-height:34px}.episode-actions{display:flex;gap:7px;margin-top:12px}.episode-actions button,.episode-actions a{flex:1;text-align:center;text-decoration:none;border:0;border-radius:4px;padding:9px 8px;font-size:12px;font-weight:800}.watch{background:#fff;color:#000}.download{background:#282828;color:#fff}.official{background:#171717;color:#ccc;border:1px solid #333!important}.status{font-size:11px;color:#999;margin-top:9px;min-height:14px}
+.player{display:none;position:fixed;inset:0;background:#000;z-index:50}.player.open{display:flex;flex-direction:column}.player-top{height:62px;display:flex;align-items:center;padding:0 20px;gap:15px;background:linear-gradient(#000c,transparent)}.player-title{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-top .close{position:static;margin-left:auto}.video-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000}.video-wrap video{width:100%;height:auto;max-height:calc(100vh - 100px);background:#000}.player-note{padding:10px 20px;color:#999;font-size:12px;text-align:center;background:#080808}.quality{margin-left:auto;color:#bbb;font-size:12px}
+.toast{position:fixed;right:18px;bottom:18px;background:#1c1c1c;border:1px solid #333;padding:12px 15px;border-radius:6px;z-index:80;display:none}.toast.show{display:block}
+@media(max-width:700px){.topbar{padding:0 15px;height:60px}.nav{display:none}.search{width:42vw}.hero{margin-top:-60px;padding:100px 15px 38px;min-height:500px}.hero h1{letter-spacing:-1px}.main{padding:0 15px}.section{margin:25px 0}.poster{flex-basis:145px}.poster-img{height:215px}.detail-hero{padding:100px 20px 30px;min-height:450px}.episodes{padding:5px 20px 40px}.episode-grid{grid-template-columns:1fr}.episode-thumb{height:190px}}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header><div class="brand"><div class="logo">ARY</div><div><h1>ARY Watcher</h1><div class="sub">All series · all episodes · HLS inspection</div></div></div><div class="actions"><button onclick="loadSeries(true)">Refresh</button><button onclick="health()">System</button></div></header>
-<section class="hero"><h2>ARY Plus Catalogue</h2><p>Browse discovered series, open their complete episode lists, inspect available HLS variants, and download the highest advertised quality.</p></section>
-<div class="toolbar"><input id="search" class="search" placeholder="Search series..." oninput="renderSeries()"><div id="count" class="count">Loading…</div></div>
-<div id="grid" class="grid"><div class="loading">Discovering series…</div></div>
-</div>
-<div id="modal" class="modal" onclick="if(event.target===this)closeModal()"><div class="dialog"><div class="dialoghead"><div><h3 id="modalTitle"></h3><div id="modalSub" class="sub"></div></div><button class="close" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
+<header class="topbar">
+  <div class="brand">ARY<span>+</span></div>
+  <nav class="nav"><button onclick="home()">Home</button><button onclick="scrollToSection('seriesSection')">Series</button><button onclick="loadSeries(true)">Refresh</button></nav>
+  <div class="top-actions"><input id="search" class="search" placeholder="Search titles..." oninput="renderHome()"><button class="iconbtn" onclick="health()">⌁</button></div>
+</header>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="eyebrow">STREAMING CATALOGUE</div>
+    <h1 id="heroTitle">ARY+ Stream</h1>
+    <p id="heroText">Discover ARY series and episodes in a streaming-style interface. Open an episode, play the available HLS stream, or download the highest advertised quality when you are authorized to do so.</p>
+    <div class="hero-actions"><button class="primary" onclick="randomPlay()">▶ Play Something</button><button class="secondary" onclick="scrollToSection('seriesSection')">Browse Series</button></div>
+  </div>
+</section>
+
+<main>
+  <section class="section"><h2 class="section-title">Recently discovered</h2><div id="recentRow" class="row"><div class="loading">Loading…</div></div></section>
+  <section id="seriesSection" class="section"><h2 class="section-title">All Series</h2><div id="seriesRow" class="row"><div class="loading">Discovering catalogue…</div></div></section>
+</main>
+
+<section id="detail" class="detail">
+  <button class="close" onclick="closeDetail()">×</button>
+  <div class="detail-hero"><div class="detail-copy">
+    <div class="eyebrow">SERIES</div><h2 id="detailTitle"></h2><div id="detailMeta" class="detail-meta"></div><div id="detailDesc" class="detail-desc"></div>
+    <div class="detail-actions"><button id="detailPlay" class="primary">▶ Play Latest</button><a id="detailOfficial" class="secondary" target="_blank" rel="noopener">Open ARY Plus ↗</a></div>
+  </div></div>
+  <div class="episodes"><h2 class="section-title">Episodes</h2><input id="episodeSearch" class="episode-search" placeholder="Search episodes..." oninput="renderEpisodes()"><div id="episodeGrid" class="episode-grid"><div class="loading">Loading episodes…</div></div></div>
+</section>
+
+<section id="player" class="player">
+  <div class="player-top"><div id="playerTitle" class="player-title"></div><div id="playerQuality" class="quality"></div><button class="close" onclick="closePlayer()">×</button></div>
+  <div class="video-wrap"><video id="video" controls playsinline preload="metadata"></video></div>
+  <div id="playerNote" class="player-note">Streaming the selected ARY HLS source. If browser playback is blocked by the source, use “Open ARY Plus”.</div>
+</section>
 <div id="toast" class="toast"></div>
+
 <script>
-let series=[],currentSeries=null,episodes=[],jobs=new Map();
-function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
-function bytes(n){if(!n)return"0 B";const u=["B","KB","MB","GB"],i=Math.min(3,Math.floor(Math.log(n)/Math.log(1024)));return(n/Math.pow(1024,i)).toFixed(i?1:0)+" "+u[i];}
-function toast(x){const e=document.getElementById("toast");e.textContent=x;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),3200)}
+let series=[],currentSeries=null,episodes=[],hls=null,currentEpisode=null;
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+const official=id=>"https://aryplus.tv/title/"+encodeURIComponent(id);
+function toast(x){const e=document.getElementById("toast");e.textContent=x;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),3000)}
 async function get(u){const r=await fetch(u);let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw Error(d.error||("HTTP "+r.status));return d}
-async function loadSeries(refresh=false){document.getElementById("grid").innerHTML='<div class="loading">Discovering series…</div>';try{series=(await get("/api/series"+(refresh?"?refresh=1":""))).series||[];renderSeries()}catch(e){document.getElementById("grid").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
-function renderSeries(){const q=document.getElementById("search").value.toLowerCase().trim();const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));document.getElementById("count").textContent=list.length+" series";document.getElementById("grid").innerHTML=list.length?list.map(x=>'<article class="card"><div class="cardtop"><div><div class="ep">'+esc(x.title)+'</div><div class="id">'+esc(x.id)+'</div></div><span class="badge">Series</span></div><button class="download" onclick="openSeries('+JSON.stringify(x.id)+','+JSON.stringify(x.title)+')">View Episodes</button></article>').join(""):'<div class="empty">No matching series.</div>'}
-async function openSeries(id,title){currentSeries={id,title};document.getElementById("modalTitle").textContent=title;document.getElementById("modalSub").textContent="Loading episodes…";document.getElementById("modalBody").innerHTML='<div class="loading">Loading complete episode catalogue…</div>';document.getElementById("modal").classList.add("open");try{episodes=(await get("/api/episodes?series="+encodeURIComponent(id))).episodes||[];renderEpisodes()}catch(e){document.getElementById("modalBody").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
-function renderEpisodes(){document.getElementById("modalSub").textContent=episodes.length+" episodes";document.getElementById("modalBody").innerHTML=episodes.map(e=>'<div class="variant"><div class="row"><strong>Episode '+esc(e.number??"")+'</strong><span class="muted">'+esc(e.title||"")+'</span></div><div class="small muted">'+esc(e.id)+'</div><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+','+JSON.stringify(e.number??"")+','+JSON.stringify(e.title||"")+')">Download Best Quality</button><button class="inspect" onclick="inspect('+JSON.stringify(e.id)+','+JSON.stringify(e.title||"")+')">Inspect HLS</button><div class="job" id="job-'+esc(e.id)+'"></div></div>').join("")||'<div class="empty">No episodes returned.</div>'}
-async function downloadEpisode(id,number,title){const box=document.getElementById("job-"+id);box.classList.add("show");box.innerHTML="Selecting best quality…";try{const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(number)+"&title="+encodeURIComponent(title));jobs.set(d.job.id,box);monitor(d.job.id)}catch(e){box.innerHTML=esc(e.message)}}
-async function monitor(id){const box=jobs.get(id);if(!box)return;try{const j=(await get("/api/download/"+id)).job;box.innerHTML='<strong>'+esc(j.quality||"best")+'</strong> · '+esc(j.resolution||"")+'<div class="bar"><div class="fill" style="width:'+Math.min(100,j.percent||0)+'%"></div></div><div class="muted">'+esc(j.state)+' · '+bytes(j.size||0)+(j.speed?" · "+esc(j.speed):"")+'</div>'+(j.filename?'<div class="small muted">'+esc(j.filename)+'</div>':"")+(j.error?'<div style="color:#ff6870">'+esc(j.error)+'</div>':"");if(j.state!=="completed"&&j.state!=="error")setTimeout(()=>monitor(id),1200)}catch(e){setTimeout(()=>monitor(id),2000)}}
-async function inspect(id,title){document.getElementById("modalTitle").textContent=title;document.getElementById("modalSub").textContent="HLS inspection";document.getElementById("modalBody").innerHTML='<div class="loading">Inspecting…</div>';try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)),s=d.stream;document.getElementById("modalBody").innerHTML='<button onclick="openSeries('+JSON.stringify(currentSeries.id)+','+JSON.stringify(currentSeries.title)+')">← Back to episodes</button><div class="variant best"><strong>Automatically selected: '+esc(s.best?(s.best.height+"p"):"Unavailable")+'</strong><div class="muted">'+esc(s.best?(s.best.width+"×"+s.best.height):"")+' · '+esc(s.best&&s.best.bandwidth?bytes(s.best.bandwidth)+"/s":"")+'</div></div>'+((s.variants||[]).map(v=>'<div class="variant"><div class="row"><strong>'+esc((v.height||"?")+"p")+'</strong><span>'+esc((v.width||"?")+"×"+(v.height||"?"))+'</span></div><div class="muted">'+esc(v.bandwidth?bytes(v.bandwidth)+"/s":"—")+' · avg '+esc(v.average_bandwidth?bytes(v.average_bandwidth)+"/s":"—")+' · '+esc(v.codecs||"—")+'</div><div class="small muted">'+esc(v.uri||"")+'</div></div>').join(""))}catch(e){document.getElementById("modalBody").innerHTML='<div class="empty">'+esc(e.message)+"</div>"}}
-function closeModal(){document.getElementById("modal").classList.remove("open")}
-async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing")+" · FFprobe "+(d.ffprobe?"ready":"missing"))}catch(e){toast(e.message)}}
+function scrollToSection(id){document.getElementById(id)?.scrollIntoView({behavior:"smooth"})}
+function home(){closeDetail();closePlayer();window.scrollTo({top:0,behavior:"smooth"})}
+async function loadSeries(refresh=false){
+ try{series=(await get("/api/series"+(refresh?"?refresh=1":""))).series||[];renderHome()}
+ catch(e){document.getElementById("seriesRow").innerHTML='<div class="empty error">'+esc(e.message)+"</div>"}
+}
+function card(x){
+ const img=x.image||x.thumbnail||"";
+ return '<button class="poster" onclick="openSeries('+JSON.stringify(x.id)+')"><div class="poster-img">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+'<div class="poster-grad"></div><div class="poster-label">'+esc(x.title)+'</div></div><div class="poster-name">'+esc(x.title)+'</div><div class="poster-meta">Series · '+esc(x.id)+'</div></button>';
+}
+function renderHome(){
+ const q=document.getElementById("search").value.toLowerCase().trim();
+ const list=series.filter(x=>(x.title+" "+x.id).toLowerCase().includes(q));
+ document.getElementById("seriesRow").innerHTML=list.length?list.map(card).join(""):'<div class="empty">No matching titles.</div>';
+ document.getElementById("recentRow").innerHTML=series.slice(0,12).map(card).join("")||'<div class="empty">No series discovered.</div>';
+}
+async function openSeries(id){
+ currentSeries=series.find(x=>x.id===id)||{id,title:id};
+ document.getElementById("detailTitle").textContent=currentSeries.title;
+ document.getElementById("detailMeta").textContent="Series · ARY Plus";
+ document.getElementById("detailDesc").textContent="Loading episode catalogue…";
+ document.getElementById("detailOfficial").href=currentSeries.url||official(id);
+ document.getElementById("episodeGrid").innerHTML='<div class="loading">Loading complete episode catalogue…</div>';
+ document.getElementById("detail").classList.add("open");
+ document.body.style.overflow="hidden";
+ try{
+   episodes=(await get("/api/episodes?series="+encodeURIComponent(id))).episodes||[];
+   document.getElementById("detailDesc").textContent=episodes.length+" episodes available in the discovered catalogue.";
+   document.getElementById("detailPlay").onclick=()=>episodes.length&&playEpisode(episodes[0]);
+   renderEpisodes();
+ }catch(e){document.getElementById("detailDesc").textContent=e.message;document.getElementById("episodeGrid").innerHTML='<div class="empty error">'+esc(e.message)+"</div>"}
+}
+function renderEpisodes(){
+ const q=document.getElementById("episodeSearch").value.toLowerCase().trim();
+ const list=episodes.filter(e=>(String(e.number??"")+" "+(e.title||"")).toLowerCase().includes(q));
+ document.getElementById("episodeGrid").innerHTML=list.length?list.map(e=>{
+   const img=e.thumbnail||"";
+   return '<article class="episode"><div class="episode-thumb">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':"")+'<span class="ep-num">EP '+esc(e.number??"")+'</span></div><div class="episode-body"><div class="episode-title">'+esc(e.title||("Episode "+(e.number??"")))+"</div><div class="episode-desc">"+esc(e.date||"")+'</div><div class="episode-actions"><button class="watch" onclick="playEpisodeById('+JSON.stringify(e.id)+')">▶ Watch</button><button class="download" onclick="downloadEpisode('+JSON.stringify(e.id)+',this)">↓ Download</button><a class="official" target="_blank" rel="noopener" href="'+esc(currentSeries.url||official(currentSeries.id))+'">ARY+</a></div><div id="status-'+esc(e.id)+'" class="status"></div></div></article>'
+ }).join(""):'<div class="empty">No matching episodes.</div>';
+}
+function playEpisodeById(id){const e=episodes.find(x=>x.id===id);if(e)playEpisode(e)}
+async function playEpisode(e){
+ currentEpisode=e;document.getElementById("player").classList.add("open");document.body.style.overflow="hidden";document.getElementById("playerTitle").textContent=(currentSeries?.title||"Series")+" · "+(e.title||("Episode "+e.number));document.getElementById("playerQuality").textContent="Loading…";
+ const video=document.getElementById("video");if(hls){hls.destroy();hls=null}video.removeAttribute("src");video.load();
+ try{
+   const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
+   const source=d.stream?.source||d.stream?.best?.uri;
+   const best=d.stream?.best;
+   document.getElementById("playerQuality").textContent=best?(best.width+"×"+best.height):"HLS";
+   if(!source)throw Error("No playable HLS source was returned.");
+   if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false});hls.loadSource(source);hls.attachMedia(video);hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));hls.on(Hls.Events.ERROR,(_,data)=>{if(data.fatal)toast("Player error. Use Open ARY Plus for this episode.")})}
+   else if(video.canPlayType("application/vnd.apple.mpegurl")){video.src=source;video.play().catch(()=>{})}
+   else throw Error("This browser cannot play HLS.");
+ }catch(err){document.getElementById("playerNote").innerHTML=esc(err.message)+' · <a target="_blank" rel="noopener" href="'+esc(currentSeries.url||official(currentSeries.id))+'" style="color:#fff">Open ARY Plus</a>'}
+}
+function closePlayer(){const p=document.getElementById("player");p.classList.remove("open");const v=document.getElementById("video");v.pause();if(hls){hls.destroy();hls=null}v.removeAttribute("src");v.load();if(!document.getElementById("detail").classList.contains("open"))document.body.style.overflow=""}
+function closeDetail(){document.getElementById("detail").classList.remove("open");document.body.style.overflow="";episodes=[]}
+async function downloadEpisode(id,button){
+ const box=document.getElementById("status-"+id);button.disabled=true;box.textContent="Preparing highest available quality…";
+ try{
+  const e=episodes.find(x=>x.id===id);const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));
+  box.textContent="Download started · "+(d.job.quality||"best")+" · "+(d.job.resolution||"");
+  pollDownload(d.job.id,box,button);
+ }catch(err){box.textContent=err.message;button.disabled=false}
+}
+async function pollDownload(id,box,button){
+ try{const j=(await get("/api/download/"+id)).job;box.textContent=j.state+(j.quality?" · "+j.quality:"")+(j.size?" · "+(j.size/1024/1024).toFixed(1)+" MB":"")+(j.error?" · "+j.error:"");if(j.state==="completed"){box.textContent="Downloaded: "+j.filename;button.disabled=false}else if(j.state==="error"){button.disabled=false}else setTimeout(()=>pollDownload(id,box,button),1200)}catch(e){setTimeout(()=>pollDownload(id,box,button),2000)}
+}
+function randomPlay(){if(!series.length)return;const s=series[Math.floor(Math.random()*series.length)];openSeries(s.id)}
+async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
 loadSeries();
 </script>
 </body>
