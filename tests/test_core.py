@@ -7,6 +7,8 @@ from ary_episode_watcher import (
     _series_from_html,
     _internal_links,
     _extract_video_sources,
+    _extract_episode_catalogue,
+    normalise_episode,
 )
 
 
@@ -80,6 +82,26 @@ class CoreTests(unittest.TestCase):
         html = r'''{"videoSource":"https:\/\/vod.example.test\/movie\/master.m3u8","other":"x"}'''
         result = _extract_video_sources(html)
         self.assertEqual(result, ["https://vod.example.test/movie/master.m3u8"])
+
+
+    def test_episode_catalogue_nested_and_escaped(self):
+        html = r'''<script type="application/json">{"props":{"pageProps":{"episodes":[
+          {"_id":"ep2","seriesId":"abc","videoEpNumber":2,"title":"Episode 2",
+           "videoSource":"https://vod.example/2.m3u8",
+           "thumbnail":{"url":"https://images.example/ep2.webp"}},
+          {"_id":"ep1","seriesId":"abc","videoEpNumber":1,"title":"Episode 1",
+           "videoSource":"https:\/\/vod.example\/1.m3u8",
+           "thumbnailUrl":"https://images.example/ep1.webp"}
+        ]}}}</script>'''
+        result = _extract_episode_catalogue(html, "abc")
+        self.assertEqual([x["_id"] for x in result], ["ep2", "ep1"])
+        self.assertEqual(normalise_episode(result[0])["thumbnail"], "https://images.example/ep2.webp")
+
+    def test_discovery_keeps_untyped_title_cards(self):
+        html = '<a href="/title/unknown123">A Drama Without Marker</a>'
+        result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
+        self.assertEqual(result[0]["id"], "unknown123")
+        self.assertEqual(result[0]["content_type"], "Series")
 
     def test_safe_filename(self):
         self.assertEqual(
