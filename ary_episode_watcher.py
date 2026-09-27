@@ -250,7 +250,7 @@ def _html_meta(text: str, name: str) -> str | None:
     for pattern in patterns:
         match = re.search(pattern, text, re.I | re.S)
         if match:
-            return re.sub(r"\\s+", " ", match.group(1)).strip()
+            return re.sub(r"\s+", " ", match.group(1)).strip()
     return None
 
 
@@ -268,19 +268,19 @@ def series_details(series_id: str) -> dict[str, Any]:
     title = _html_meta(page, "og:title") or base.get("title") or series_id
     description = _html_meta(page, "og:description") or _html_meta(page, "description") or ""
     image = _html_meta(page, "og:image") or base.get("image")
-    year_match = re.search(r"\\b(19\\d{2}|20\\d{2})\\b", page)
+    year_match = re.search(r"\b(19\d{2}|20\d{2})\b", page)
     year = int(year_match.group(1)) if year_match else None
 
     def nearby(label: str) -> list[str]:
-        match = re.search(r"(?is)" + re.escape(label) + r"\\s*[:\\-]?\\s*([^<]{0,300})", page)
+        match = re.search(r"(?is)" + re.escape(label) + r"\s*[:\-]?\s*([^<]{0,300})", page)
         if not match:
             return []
-        value = re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", match.group(1))).strip()
+        value = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", match.group(1))).strip()
         return [x.strip() for x in re.split(r"[,|•]", value) if x.strip()][:12]
 
     genres = nearby("Genres") or nearby("Genre")
     cast = nearby("Cast") or nearby("Starring") or nearby("Actors")
-    clean_title = re.sub(r"\\s*\\|.*$", "", title).strip()
+    clean_title = re.sub(r"\s*\|.*$", "", title).strip()
     return {
         **base,
         "title": clean_title or base.get("title") or series_id,
