@@ -8,6 +8,8 @@ from ary_episode_watcher import (
     _internal_links,
     _extract_video_sources,
     _extract_episode_catalogue,
+    _extract_title_catalogue,
+    _episode_api_candidates,
     normalise_episode,
 )
 
@@ -102,6 +104,34 @@ class CoreTests(unittest.TestCase):
         result = _series_from_html(html, "https://aryplus.tv/browse/genre/test")
         self.assertEqual(result[0]["id"], "unknown123")
         self.assertEqual(result[0]["content_type"], "Series")
+
+    def test_episode_catalogue_accepts_alternate_ary_video_fields(self):
+        html = r'''{"items":[
+          {"id":"ep99","seriesId":"abc","episodeNo":99,"videoTitle":"Episode 99",
+           "videoUrl":"https:\/\/vod.example\/99.m3u8",
+           "episodeThumbnail":"https:\/\/images.example\/ep99.webp"}
+        ]}'''
+        result = _extract_episode_catalogue(html, "abc")
+        self.assertEqual(len(result), 1)
+        normal = normalise_episode(result[0])
+        self.assertEqual(normal["number"], 99)
+        self.assertEqual(normal["title"], "Episode 99")
+        self.assertEqual(normal["thumbnail"], "https://images.example/ep99.webp")
+
+    def test_title_catalogue_reads_embedded_json_cards(self):
+        html = r'''<script type="application/json">{"data":{"items":[
+          {"_id":"abc123456","title":"Hidden Drama","posterUrl":"https:\/\/images.example\/poster.webp","contentType":"Series"},
+          {"_id":"tf1234567","title":"Hidden Telefilm","contentType":"Telefilm"}
+        ]}}</script>'''
+        result = _extract_title_catalogue(html, "https://aryplus.tv/browse")
+        by_id = {x["id"]: x for x in result}
+        self.assertEqual(by_id["abc123456"]["title"], "Hidden Drama")
+        self.assertEqual(by_id["tf1234567"]["content_type"], "Telefilm")
+
+    def test_episode_api_candidates_finds_relative_endpoint(self):
+        html = r'''<script>const endpoint="/api/episodes?series=abc123456";</script>'''
+        result = _episode_api_candidates(html, "abc123456")
+        self.assertTrue(any("/api/episodes?series=abc123456" in x for x in result))
 
     def test_safe_filename(self):
         self.assertEqual(
