@@ -6,6 +6,7 @@ from ary_episode_watcher import (
     safe_filename,
     _series_from_html,
     _internal_links,
+    _extract_video_sources,
 )
 
 
@@ -74,6 +75,11 @@ class CoreTests(unittest.TestCase):
             "https://aryplus.tv/browse/genre/def456",
         })
         self.assertEqual(titles, {"https://aryplus.tv/title/title123"})
+
+    def test_extract_video_sources_from_escaped_page_data(self):
+        html = r'''{"videoSource":"https:\/\/vod.example.test\/movie\/master.m3u8","other":"x"}'''
+        result = _extract_video_sources(html)
+        self.assertEqual(result, ["https://vod.example.test/movie/master.m3u8"])
 
     def test_safe_filename(self):
         self.assertEqual(
