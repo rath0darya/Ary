@@ -94,7 +94,7 @@ def http_text(url: str, headers: dict[str, str] | None = None, timeout: int = 25
 
 def extract_json_value(text: str, names: list[str]) -> str | None:
     for name in names:
-        pattern = r"""["']""" + re.escape(name) + r"""["']\\s*:\\s*["']([^"']+)["']"""
+        pattern = r"""["']""" + re.escape(name) + r"""["']\s*:\s*["']([^"']+)["']"""
         match = re.search(pattern, text, re.I)
         if match:
             return match.group(1).strip()
@@ -182,7 +182,7 @@ def _series_from_html(text: str, source_url: str) -> list[dict[str, Any]]:
     for match in re.finditer(pattern, text, re.I | re.S):
         series_id, anchor = match.group(1), match.group(2)
         context = text[max(0, match.start() - 700):min(len(text), match.end() + 1200)]
-        if not re.search(r'\bSeries\b', context, re.I):
+        if not re.search(r'\bSeries(?:\b|\d)', context, re.I):
             continue
         title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", anchor)).strip()
         title = re.sub(r"\s*(?:Series|Movie|Live)\s*\d+.*$", "", title, flags=re.I).strip()
@@ -304,15 +304,6 @@ def parse_hls_master(text: str, base_url: str) -> dict[str, Any]:
             pending["uri"] = urljoin(base_url, line)
             variants.append(pending)
             pending = None
-    variants.sort(
-        key=lambda x: (
-            x.get("height") or 0,
-            x.get("width") or 0,
-            x.get("bandwidth") or 0,
-            x.get("average_bandwidth") or 0,
-        ),
-        reverse=True,
-    )
     return {"variants": variants, "base_url": base_url}
 
 
