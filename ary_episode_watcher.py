@@ -35,6 +35,8 @@ DISCOVERY_URLS = [
             "https://aryplus.tv/browse/genre/684032e9f8d1dd20986123d5",
             "https://aryplus.tv/browse/genre/685034f9ed08c2bef38ffec0",
             "https://aryplus.tv/browse/genre/669a467156ded50194cf0df0",
+            "https://aryplus.tv/",
+            "https://aryplus.tv/browse",
         ]),
     ).split(",")
     if item.strip()
@@ -573,7 +575,7 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
 
     # Do not assume the hand-written genre list is complete. ARY exposes
     # additional genre/category pages from its own catalogue pages.
-    while queue and len(visited) < 300:
+    while queue and len(visited) < 750:
         url = queue.pop(0)
         if url in visited:
             continue
