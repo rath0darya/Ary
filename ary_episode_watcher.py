@@ -420,7 +420,7 @@ def _extract_episode_catalogue(text: str, series_id: str) -> list[dict[str, Any]
 
     # First use balanced extraction around common episode-array keys.
     for blob in blobs:
-        for match in re.finditer(r'["\\'](?:episodes|episodeList|episode_list|videos)["\\']\s*:\s*', blob, re.I):
+        for match in re.finditer(r"""["\\'](?:episodes|episodeList|episode_list|videos)["\\']\s*:\s*""", blob, re.I):
             start = match.end()
             while start < len(blob) and blob[start].isspace():
                 start += 1
@@ -933,12 +933,12 @@ def _episode_api_candidates(text: str, series_id: str) -> list[str]:
     blobs = [html.unescape(text).replace("\\/", "/").replace("\\\"", '"')]
     # Absolute API URLs.
     for blob in blobs:
-        for m in re.finditer(r'https?://[^"\\'<>\s]+', blob, re.I):
+        for m in re.finditer(r"""https?://[^"\\'<>\s]+""", blob, re.I):
             url = m.group(0).rstrip("\\'\")],;")
             if re.search(r"/api/|episode|video|series", url, re.I) and url not in seen:
                 seen.add(url); candidates.append(url)
         # Relative API routes embedded in JSON/JS.
-        for m in re.finditer(r'["\\']((?:/)?api/[^"\\']+)["\\']', blob, re.I):
+        for m in re.finditer(r"""["\\']((?:/)?api/[^"\\']+)["\\']""", blob, re.I):
             path = m.group(1)
             path = re.sub(r"\$\{(?:series|seriesId|id)\}", series_id, path)
             path = re.sub(r"\{(?:series|seriesId|id)\}", series_id, path)
