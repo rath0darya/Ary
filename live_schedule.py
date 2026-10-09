@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Schedule-aware ARY Digital live availability monitor (no media recording).
-
-Runs on Android/Termux or desktop Python. It detects candidate HLS playlists
-from the public live page and checks playlist availability. It does not save,
-download, remux, or archive audiovisual content.
-"""
+"""Schedule-aware ARY Digital live availability monitor (no media recording)."""
 from __future__ import annotations
 
 import json
@@ -23,7 +18,7 @@ from zoneinfo import ZoneInfo
 LIVE_PAGE = os.environ.get("ARY_LIVE_PAGE", "https://live.arydigital.tv/")
 TZ = ZoneInfo("Asia/Kolkata")
 START_TIME = clock_time(20, 30)
-SCHEDULE_DAYS = {4, 5}  # Python weekday: Friday=4, Saturday=5
+SCHEDULE_DAYS = {4, 5}  # Friday, Saturday
 POLL_SECONDS = max(10, int(os.environ.get("ARY_LIVE_POLL_SECONDS", "30")))
 ACTIVE_POLL_SECONDS = max(10, int(os.environ.get("ARY_LIVE_ACTIVE_POLL_SECONDS", "20")))
 END_FAILURES = max(3, int(os.environ.get("ARY_LIVE_END_FAILURES", "5")))
@@ -71,8 +66,7 @@ def candidate_playlists(page: bytes, final_url: str) -> list[str]:
     for pattern in patterns:
         for match in re.findall(pattern, text, flags=re.I):
             value = urljoin(final_url, match.rstrip("),;"))
-            parsed = urlparse(value)
-            if parsed.scheme in {"http", "https"} and value not in found:
+            if urlparse(value).scheme in {"http", "https"} and value not in found:
                 found.append(value)
     return found[:20]
 
@@ -85,24 +79,18 @@ def check_playlist(url: str) -> dict[str, Any]:
             return {"available": False, "reason": f"HTTP {status}; not an HLS playlist"}
         variants = re.findall(r"#EXT-X-STREAM-INF:[^\n]*\n([^\n#]+)", text)
         if variants:
-            # Confirm at least one advertised variant playlist is reachable.
             child = urljoin(final_url, variants[0].strip())
-            child_data, child_final, child_status = fetch(child, timeout=12)
+            child_data, _child_final, child_status = fetch(child, timeout=12)
             child_text = child_data.decode("utf-8", errors="ignore")
             ok = child_status == 200 and "#EXTM3U" in child_text[:4096]
             has_segments = bool(re.search(r"(?m)^(?!#)\S+", child_text))
-            return {
-                "available": ok and has_segments,
-                "kind": "master",
-                "reason": "variant playlist reachable" if ok else "variant playlist unavailable",
-            }
+            return {"available": ok and has_segments, "kind": "master",
+                    "reason": "variant playlist reachable" if ok else "variant playlist unavailable"}
         has_segments = bool(re.search(r"(?m)^(?!#)\S+", text))
         ended = "#EXT-X-ENDLIST" in text
-        return {
-            "available": has_segments and not ended,
-            "kind": "media",
-            "reason": "live segments present" if has_segments and not ended else ("playlist ended" if ended else "no segments"),
-        }
+        return {"available": has_segments and not ended, "kind": "media",
+                "reason": "live segments present" if has_segments and not ended else
+                          ("playlist ended" if ended else "no segments")}
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"[:240]}
 
@@ -112,38 +100,29 @@ def inspect_live_page() -> dict[str, Any]:
         page, final_url, status = fetch(LIVE_PAGE, timeout=20)
         urls = candidate_playlists(page, final_url)
         if not urls:
-            return {
-                "available": False,
-                "page_status": status,
-                "candidate_count": 0,
-                "reason": "Live page loaded, but no HLS playlist URL was discoverable in its HTML",
-            }
+            return {"available": False, "page_status": status, "candidate_count": 0,
+                    "reason": "Page loaded, but no HLS URL was discoverable in its HTML"}
         reasons = []
         for playlist in urls:
             result = check_playlist(playlist)
             if result.get("available"):
-                # Do not persist signed media URLs in logs.
-                return {
-                    "available": True,
-                    "page_status": status,
-                    "candidate_count": len(urls),
-                    "playlist_kind": result.get("kind", "hls"),
-                    "reason": result.get("reason", "live playlist reachable"),
-                }
+                # Never write signed stream URLs to logs.
+                return {"available": True, "page_status": status, "candidate_count": len(urls),
+                        "playlist_kind": result.get("kind", "hls"),
+                        "reason": result.get("reason", "live playlist reachable")}
             reasons.append(str(result.get("reason", "unavailable")))
-        return {
-            "available": False,
-            "page_status": status,
-            "candidate_count": len(urls),
-            "reason": "; ".join(reasons[:3]) or "No reachable HLS playlist",
-        }
+        return {"available": False, "page_status": status, "candidate_count": len(urls),
+                "reason": "; ".join(reasons[:3]) or "No reachable HLS playlist"}
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"[:240]}
 
 
-def next_scheduled_start(after: datetime) -> datetime:
-    """Return the next Friday/Saturday at 20:30 IST, including today if upcoming."""
+def next_scheduled_start(after: datetime, last_checked_date=None) -> datetime:
+    """Next schedule time; if started late today, begin monitoring immediately once."""
     base = after.astimezone(TZ)
+    if base.weekday() in SCHEDULE_DAYS and base.time().replace(tzinfo=None) >= START_TIME:
+        if last_checked_date != base.date():
+            return base
     for offset in range(8):
         day = (base + timedelta(days=offset)).date()
         if day.weekday() not in SCHEDULE_DAYS:
@@ -170,19 +149,14 @@ def monitor_broadcast() -> None:
         result = inspect_live_page()
         if result["available"]:
             consecutive_failures = 0
-            if not announced:
-                log("live_detected", **result)
-                announced = True
-            else:
-                log("live_still_available", **result)
+            log("live_detected" if not announced else "live_still_available", **result)
+            announced = True
             time.sleep(ACTIVE_POLL_SECONDS)
             continue
-
         if not announced:
             log("waiting_for_live", **result)
             time.sleep(POLL_SECONDS)
             continue
-
         consecutive_failures += 1
         log("live_check_failed", consecutive_failures=consecutive_failures, **result)
         if consecutive_failures >= END_FAILURES:
@@ -192,23 +166,17 @@ def monitor_broadcast() -> None:
 
 
 def run_scheduler() -> None:
-    log(
-        "monitor_started",
-        page=LIVE_PAGE,
-        timezone="Asia/Kolkata",
-        schedule=["Friday 20:30", "Saturday 20:30"],
-        recording=False,
-    )
+    last_checked_date = None
+    log("monitor_started", page=LIVE_PAGE, timezone="Asia/Kolkata",
+        schedule=["Friday 20:30", "Saturday 20:30"], recording=False)
     while not STOP:
-        target = next_scheduled_start(now())
+        target = next_scheduled_start(now(), last_checked_date)
         log("next_check_scheduled", scheduled_for=target.isoformat())
         wait_until(target)
         if STOP:
             break
-        # If this process starts after 20:30 on a scheduled day, the next
-        # calculated start is today and monitoring begins immediately.
+        last_checked_date = target.date()
         monitor_broadcast()
-        # Advance at least one second to avoid repeating this same schedule.
         time.sleep(2)
 
 
