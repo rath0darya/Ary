@@ -171,35 +171,21 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
 <section id="detail" class="detail">
  <button class="close" onclick="closeDetail()">×</button>
  <div id="detailHero" class="detail-hero"><div class="detail-copy"><div id="detailType" class="eyebrow"></div><h2 id="detailTitle"></h2><div id="detailFacts" class="facts"></div><p id="detailDesc" class="desc"></p><div id="detailCast" class="cast"></div><div class="hero-actions"><button id="detailPlay" class="btn primary">▶ Play</button><a id="official" class="btn" target="_blank" rel="noopener">Open ARY+ ↗</a></div></div></div>
- <div class="detail-body"><div class="section-head"><h2 class="title">Episodes / Video</h2><span id="episodeCount" class="count"></span></div><input id="episodeSearch" class="search" style="width:100%;max-width:500px;background:#ffffff08" placeholder="Search episodes…" oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading…</div></div></div>
+ <div class="detail-body"><div class="section-head"><h2 class="title">Episodes / Video</h2><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span id="episodeCount" class="count"></span><button class="btn" type="button" onclick="loadEpisodes(true)">↻ Find newer entries</button></div></div><input id="episodeSearch" class="search" style="width:100%;max-width:500px;background:#ffffff08" placeholder="Search episodes…" oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading…</div></div></div>
 </section>
 
-<section id="player" class="player" aria-label="ARY video player">
- <div class="video-stage" id="videoStage">
-  <video id="video" playsinline preload="metadata"></video><div id="brightnessLayer" class="brightness-layer"></div>
-  <div class="gesture left" data-side="left"><span id="leftHud" class="gesture-hud">↶ 10s</span></div>
-  <div class="gesture right" data-side="right"><span id="rightHud" class="gesture-hud">10s ↷</span></div>
-  <div class="gesture center" id="centerGesture"></div>
-  <div class="center-controls"><button class="center-btn" onclick="seek(-10)">↶<small>10</small></button><button id="centerPlay" class="center-btn main" onclick="togglePlay()">▶</button><button class="center-btn" onclick="seek(10)"><small>10</small>↷</button></div>
+<section id="player" class="player" aria-label="Video playback">
+ <div class="video-stage"><video id="video" playsinline controls preload="metadata"></video></div>
+ <div class="player-top">
+  <strong id="playerTitle">Episode</strong><span class="spacer"></span>
+  <span id="playerNote" role="status">Preparing stream…</span>
+  <button class="pbtn" onclick="downloadCurrent()">↓ Download</button>
+  <button class="pbtn" onclick="closePlayer()" aria-label="Close video">× Close</button>
  </div>
- <div class="player-top"><strong id="playerTitle">ARY+</strong><span class="spacer"></span><button class="pbtn" onclick="toggleLock()" id="lockButton">🔓</button><button class="pbtn" onclick="toggleOrientation()">↻</button><button class="pbtn" onclick="toggleFullscreen()">⛶</button><button class="pbtn" onclick="closePlayer()">×</button></div>
- <div class="player-bottom">
-  <input id="seekBar" class="seek" type="range" min="0" max="1000" value="0" oninput="seekSlider(this.value)">
-  <div class="player-actions">
-   <button class="pbtn" onclick="togglePlay()" id="playPause">▶</button><span id="time" class="time">0:00 / 0:00</span>
-   <button class="pbtn" onclick="seek(-10)">−10</button><button class="pbtn" onclick="seek(10)">+10</button>
-   <button class="pbtn" onclick="toggleSettings()">⚙</button><button class="pbtn" onclick="toggleCaptions()" id="cc">CC</button><button class="pbtn" onclick="togglePiP()">▣</button><button class="pbtn" onclick="downloadCurrent()">↓</button>
-  </div>
-  <div class="player-info"><span id="playerNote">Preparing stream…</span><span id="captionStatus">Captions unavailable</span></div>
- </div>
- <div id="lockBadge" class="lock-badge">🔒 Controls locked · tap lock to unlock</div>
- <div id="settings" class="player settings">
-  <h3>Player settings</h3>
-  <div class="setline"><span>Quality</span><select id="quality" onchange="changeQuality()"><option value="-1">Auto</option></select></div>
-  <div class="setline"><span>Speed</span><select id="speed" onchange="changeSpeed()"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div>
-  <div class="setline"><span>Screen</span><select id="fit" onchange="changeFit()"><option value="contain">Fit</option><option value="cover">Fill</option></select></div>
-  <div class="setline"><span>Brightness</span><select id="brightness" onchange="setBrightness(this.value)"><option value="0.55">55%</option><option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>
-  <div class="setline"><span>Orientation</span><button class="pbtn" onclick="toggleOrientation()">Rotate</button></div>
+ <div class="player-bottom" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <label for="quality">Playlist quality</label>
+  <select id="quality" onchange="changeQuality()" aria-label="Playlist quality"><option value="-1">Auto / source</option></select>
+  <span id="captionStatus" hidden>Captions unavailable</span>
  </div>
 </section>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -248,39 +234,98 @@ function renderContinue(){const all=[];for(let i=0;i<localStorage.length;i++){co
 async function resumeWatch(v){await openSeries(v.seriesId);if(v.id){const e=episodes.find(x=>x.id===v.id)||episodes.find(x=>Number(x.number)===Number(v.number));if(e)playEpisode(e,v.position||0)}}
 
 async function openSeries(id){try{$("detail").classList.add("open");document.body.style.overflow="hidden";const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;setHero(currentSeries);$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=currentSeries.description||"";$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";$("official").href=currentSeries.url||("https://aryplus.tv/title/"+id);$("detailHero").style.backgroundImage=poster(currentSeries)?"url('"+imageUrl(poster(currentSeries))+"')":"";$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
-async function loadEpisodes(){if(!currentSeries)return;$("episodeGrid").innerHTML='<div class="loading">Loading video catalogue…</div>';try{const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id));episodes=Array.isArray(d.episodes)?d.episodes:[];renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s")}catch(e){$("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
-function renderEpisodes(){const q=($("episodeSearch").value||"").toLowerCase();const list=episodes.filter(e=>!q||[e.title,e.number,e.date,e.description].join(" ").toLowerCase().includes(q));$("episodeGrid").innerHTML=list.length?list.map(e=>'<article class="ep"><div class="ep-thumb">'+(e.thumbnail?'<img loading="lazy" src="'+imageUrl(e.thumbnail)+'">':'')+'<span class="ep-num">'+esc(e.number??"Video")+'</span></div><div class="ep-body"><div class="ep-title">'+esc(e.title||"Video")+'</div><div class="ep-date">'+esc(e.date||"")+'</div><div class="ep-actions"><button class="watch" onclick="playEpisodeById(\\''+esc(e.id)+'\\')">▶ Stream here</button><button class="download" onclick="downloadEpisode(\\''+esc(e.id)+'\\',this)">↓ Download</button></div><div id="status-'+esc(e.id)+'" class="status"></div><div class="fallback"><span class="count">In-app playback requires an accessible, authorized media source.</span></div></div></article>').join(""):'<div class="empty">No matching episodes / video.</div>'}
-function playEpisodeById(id){const e=episodes.find(x=>x.id===id);if(e)playEpisode(e,watchState(e.id)?.position||0)}
-function formatTime(s){if(!isFinite(s))return"0:00";s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return(h?h+":" : "")+(h&&m<10?"0":"")+m+":"+(sec<10?"0":"")+sec}
-function showUI(){if(locked)return;$("player").classList.remove("hidden-ui");clearTimeout(uiTimer);uiTimer=setTimeout(()=>{if(!$("video").paused&&!$("settings").classList.contains("open")&&!locked)$("player").classList.add("hidden-ui")},3000)}
-function toggleUI(){if(locked)return;const p=$("player");if(p.classList.contains("hidden-ui"))showUI();else{clearTimeout(uiTimer);p.classList.add("hidden-ui")}}
-function togglePlay(){const v=$("video");if(v.paused)v.play().catch(()=>{});else v.pause();showUI()}
-function seek(sec){const v=$("video");if(!isFinite(v.duration))return;v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+sec));showUI();gestureHud(sec<0?"left":"right",sec<0?"↶ 10s":"10s ↷")}
-function seekSlider(x){const v=$("video");if(isFinite(v.duration))v.currentTime=(Number(x)/1000)*v.duration;showUI()}
-function sync(){const v=$("video");$("time").textContent=formatTime(v.currentTime)+" / "+formatTime(v.duration);$("seekBar").value=isFinite(v.duration)?Math.round(v.currentTime/v.duration*1000):0;$("playPause").textContent=v.paused?"▶":"❚❚";$("centerPlay").textContent=v.paused?"▶":"❚❚";saveWatch(currentEpisode,v.currentTime)}
-function gestureHud(side,text){const el=side==="left"?$("leftHud"):$("rightHud");el.textContent=text;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),650)}
-function setBrightness(v){brightness=Number(v);$("video").style.filter="brightness("+brightness+")";$("brightnessLayer").style.opacity=Math.max(0,(1-brightness)*.75);localStorage.setItem("ary-brightness",brightness)}
-function brightnessGesture(delta){brightness=Math.max(.35,Math.min(1.25,brightness+delta));setBrightness(brightness);gestureHud("left","☀ "+Math.round(brightness*100)+"%")}
-function volumeGesture(delta){const v=$("video");v.muted=false;v.volume=Math.max(0,Math.min(1,v.volume+delta));gestureHud("right","🔊 "+Math.round(v.volume*100)+"%")}
-function startTouch(ev){if(locked)return;const t=ev.touches[0];gestureState={x:t.clientX,y:t.clientY,time:Date.now(),lastX:t.clientX,lastY:t.clientY}}
-function moveTouch(ev){if(!gestureState||locked)return;const t=ev.touches[0],dx=t.clientX-gestureState.x,dy=t.clientY-gestureState.y;if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)){if(t.clientX<innerWidth*.5){brightnessGesture(-dy/innerHeight*.035)}else{volumeGesture(-dy/innerHeight*.04)}gestureState.lastY=t.clientY;return}if(Math.abs(dx)>20&&Math.abs(dx)>Math.abs(dy)){const v=$("video");if(isFinite(v.duration)){v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+dx/innerWidth*v.duration));gestureHud("right","↔ "+formatTime(v.currentTime))}gestureState.lastX=t.clientX}}
-function endTouch(ev){if(!gestureState||locked)return;const dx=ev.changedTouches[0].clientX-gestureState.x,dy=ev.changedTouches[0].clientY-gestureState.y,dt=Date.now()-gestureState.time;if(Math.abs(dx)<18&&Math.abs(dy)<18&&dt<300){const side=ev.changedTouches[0].clientX<innerWidth*.34?"left":ev.changedTouches[0].clientX>innerWidth*.66?"right":"center";const now=Date.now();if(side==="center")toggleUI();else if(lastTap[side]&&now-lastTap[side]<330){seek(side==="left"?-10:10);lastTap[side]=0}else{lastTap[side]=now;showUI();setTimeout(()=>{if(lastTap[side]===now)lastTap[side]=0},350)}}gestureState=null}
-function toggleLock(){locked=!locked;$("player").classList.toggle("locked",locked);$("lockButton").textContent=locked?"🔒":"🔓";if(locked){$("settings").classList.remove("open");$("player").classList.remove("hidden-ui")}else showUI()}
-function toggleSettings(){if(locked)return;$("settings").classList.toggle("open");showUI()}
-function changeSpeed(){$("video").playbackRate=Number($("speed").value);showUI()}
-function changeFit(){$("video").style.objectFit=$("fit").value;showUI()}
-function setQualityOptions(){const q=$("quality");q.innerHTML='<option value="-1">Auto</option>';if(hls?.levels){hls.levels.map((x,i)=>({x,i})).sort((a,b)=>(b.x.height||0)-(a.x.height||0)).forEach(o=>{const opt=document.createElement("option");opt.value=o.i;opt.textContent=(o.x.height||"?")+"p · "+(o.x.width||"?")+"×"+(o.x.height||"?");q.appendChild(opt)})}else if(variants.length){variants.slice().sort((a,b)=>(b.height||0)-(a.height||0)).forEach(x=>{const opt=document.createElement("option");opt.value="-1";opt.textContent=(x.height||"?")+"p · browser managed";q.appendChild(opt)})}}
-function changeQuality(){if(!hls)return;const n=Number($("quality").value);hls.currentLevel=n;$("playerNote").textContent=n<0?"Auto quality":"Quality "+(hls.levels[n]?.height||"")+"p";showUI()}
-function captionsAvailable(){return !!(hls?.subtitleTracks?.length||$("video").textTracks?.length)}
-function toggleCaptions(){const tracks=hls?.subtitleTracks||[];if(tracks.length){hls.subtitleTrack=hls.subtitleTrack<0?0:-1;$("captionStatus").textContent=hls.subtitleTrack>=0?"Captions on":"Captions off"}else{const ts=$("video").textTracks||[];if(ts.length){ts[0].mode=ts[0].mode==="showing"?"hidden":"showing";$("captionStatus").textContent=ts[0].mode==="showing"?"Captions on":"Captions off"}else toast("Captions are not provided by this stream.")}showUI()}
-async function toggleFullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await $("player").requestFullscreen({navigationUI:"hide"})}catch{toast("Fullscreen unavailable in this browser.")}showUI()}
-async function toggleOrientation(){if(!document.fullscreenElement){await toggleFullscreen()}const target=innerWidth>innerHeight?"portrait":"landscape";try{await screen.orientation?.lock?.(target);toast(target==="landscape"?"Landscape":"Portrait")}catch{toast("Rotate the device manually if orientation lock is unavailable.")}showUI()}
-async function togglePiP(){try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else if(document.pictureInPictureEnabled)await $("video").requestPictureInPicture();else toast("Picture-in-picture is unavailable.")}catch{toast("Picture-in-picture unavailable.")}}
-function destroyPlayer(){clearTimeout(uiTimer);if(hls){hls.destroy();hls=null}const v=$("video");v.pause();v.removeAttribute("src");v.load();try{screen.orientation?.unlock?.()}catch{}}
-async function playEpisode(e,pos=0){currentEpisode=e;currentIndex=episodes.findIndex(x=>x.id===e.id);$("player").classList.add("open");document.body.style.overflow="hidden";$("playerTitle").textContent=(currentSeries?.title||"ARY+")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+ (e.title||"Video");$("settings").classList.remove("open");locked=false;$("lockButton").textContent="🔓";$("player").classList.remove("locked");$("quality").innerHTML="<option>Loading…</option>";$("playerNote").textContent="Finding HLS stream…";showUI();destroyPlayer();try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));variants=(d.stream?.variants||[]).filter(x=>x?.uri);const source=d.stream?.source||d.stream?.best?.uri;if(!source)throw Error("No playable stream returned.");attachStream(source,pos)}catch(err){$("playerNote").textContent=err.message;showUI()}}
-function attachStream(source,pos){const v=$("video");v.style.objectFit=$("fit").value;const saved=Number(localStorage.getItem("ary-brightness")||"1");setBrightness(saved);if(/\\.mp4(?:$|\\?)/i.test(source)){v.src=source;v.onloadedmetadata=()=>{setQualityOptions();if(pos>0&&pos<v.duration)v.currentTime=pos;v.play().catch(()=>{$("playerNote").textContent="Tap Play to start"})};$("playerNote").textContent="Direct MP4 source";v.ontimeupdate=sync;v.onplay=()=>{sync();showUI()};v.onpause=()=>{saveWatch(currentEpisode,v.currentTime,true);showUI()};v.onended=()=>{saveWatch(currentEpisode,v.duration,true);if(currentIndex>=0&&currentIndex<episodes.length-1)setTimeout(()=>playEpisode(episodes[currentIndex+1]),1500)};return}if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,backBufferLength:30});hls.on(Hls.Events.ERROR,(_,d)=>{if(!d?.fatal)return;if(d.type===Hls.ErrorTypes.NETWORK_ERROR){$("playerNote").textContent="Network error · retrying";hls.startLoad()}else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){$("playerNote").textContent="Media error · recovering";hls.recoverMediaError()}else $("playerNote").textContent="HLS playback failed"});hls.on(Hls.Events.MANIFEST_PARSED,()=>{setQualityOptions();$("playerNote").textContent="HLS ready · Auto quality";if(pos>0)v.currentTime=pos;v.play().catch(()=>{$("playerNote").textContent="Tap Play to start"})});hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{$("captionStatus").textContent=hls.subtitleTracks?.length?"Captions available":"Captions unavailable"});hls.loadSource(source);hls.attachMedia(v)}else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=source;v.onloadedmetadata=()=>{setQualityOptions();if(pos>0)v.currentTime=pos;v.play().catch(()=>{})}}else throw Error("This browser cannot play HLS.");v.ontimeupdate=sync;v.onplay=()=>{sync();showUI()};v.onpause=()=>{saveWatch(currentEpisode,v.currentTime,true);showUI()};v.onended=()=>{saveWatch(currentEpisode,v.duration,true);if(currentIndex>=0&&currentIndex<episodes.length-1){setTimeout(()=>playEpisode(episodes[currentIndex+1]),1500)}};v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=pos;sync()}}
+async function loadEpisodes(force=false){
+ if(!currentSeries)return;
+ $("episodeGrid").innerHTML='<div class="loading">Loading video catalogue…</div>';
+ try{
+  const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id)+(force?"&refresh=1":""));
+  episodes=Array.isArray(d.episodes)?d.episodes:[];
+  renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s");
+  if(force)toast("Episode catalogue refreshed.");
+ }catch(e){$("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
+}
+function renderEpisodes(){
+ const q=($("episodeSearch").value||"").toLowerCase();
+ const list=episodes.filter(e=>!q||[e.title,e.number,e.date,e.description].join(" ").toLowerCase().includes(q));
+ const grid=$("episodeGrid");grid.replaceChildren();
+ if(!list.length){grid.innerHTML='<div class="empty">No matching episodes / video.</div>';return}
+ for(const e of list){
+  const card=document.createElement("article");card.className="ep";
+  const thumb=document.createElement("div");thumb.className="ep-thumb";
+  if(e.thumbnail){const img=document.createElement("img");img.loading="lazy";img.src=imageUrl(e.thumbnail);img.alt="";thumb.appendChild(img)}
+  const num=document.createElement("span");num.className="ep-num";num.textContent=e.number??"Video";thumb.appendChild(num);
+  const body=document.createElement("div");body.className="ep-body";
+  const title=document.createElement("div");title.className="ep-title";title.textContent=e.title||"Video";
+  const date=document.createElement("div");date.className="ep-date";date.textContent=e.date||"";
+  const actions=document.createElement("div");actions.className="ep-actions";
+  const stream=document.createElement("button");stream.className="watch";stream.type="button";stream.textContent="▶ Stream here";stream.addEventListener("click",()=>playEpisode(e,watchState(e.id)?.position||0));
+  const find=document.createElement("button");find.className="download";find.type="button";find.textContent="⌕ Find playlists";find.addEventListener("click",()=>inspectEpisodePlaylists(e,find));
+  const download=document.createElement("button");download.className="download";download.type="button";download.textContent="↓ Download";download.addEventListener("click",()=>downloadEpisode(e.id,download));
+  actions.append(stream,find,download);
+  const status=document.createElement("div");status.id="status-"+e.id;status.className="status";
+  const box=document.createElement("div");box.className="playlist-results";box.style.cssText="display:grid;gap:6px;margin-top:8px;overflow-wrap:anywhere";
+  body.append(title,date,actions,status,box);card.append(thumb,body);grid.appendChild(card);
+ }
+}
+async function inspectEpisodePlaylists(e,button){
+ const status=document.getElementById("status-"+e.id),box=status?.parentElement?.querySelector(".playlist-results");
+ if(!box)return;box.replaceChildren();button.disabled=true;button.textContent="Searching…";
+ status.textContent="Checking currently available HLS playlists…";
+ try{
+  const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
+  const stream=d.stream||{},items=[];
+  if(stream.source)items.push({uri:stream.source,height:null,label:"Master / source"});
+  for(const v of (stream.variants||[])){if(v?.uri&&!items.some(x=>x.uri===v.uri))items.push({uri:v.uri,height:v.height,label:v.height?v.height+"p":"HLS variant"})}
+  if(stream.best?.uri&&!items.some(x=>x.uri===stream.best.uri))items.push({uri:stream.best.uri,height:stream.best.height,label:stream.best.height?stream.best.height+"p":"Best available"});
+  if(!items.length)throw Error("No accessible playlist was returned.");
+  status.textContent=items.length+" accessible playlist/source option(s) found.";
+  for(const item of items){
+   const row=document.createElement("div");row.style.cssText="border:1px solid var(--line);border-radius:10px;padding:8px;background:#ffffff05";
+   const label=document.createElement("div");label.style.cssText="font-size:12px;font-weight:800";label.textContent=item.label;
+   const uri=document.createElement("div");uri.style.cssText="font-size:10px;color:var(--muted);overflow-wrap:anywhere;word-break:break-word";uri.textContent=item.uri;
+   const play=document.createElement("button");play.className="btn";play.type="button";play.textContent="Play this source";play.addEventListener("click",()=>playEpisode(e,0,item.uri));
+   row.append(label,uri,play);box.appendChild(row);
+  }
+ }catch(err){status.textContent="Playlist discovery unavailable: "+err.message}
+ finally{button.disabled=false;button.textContent="⌕ Find playlists"}
+}
+function setQualityOptions(){
+ const q=$("quality");if(!q)return;q.replaceChildren();
+ const auto=document.createElement("option");auto.value="-1";auto.textContent="Auto / source";q.appendChild(auto);
+ (variants||[]).filter(x=>x?.uri).forEach((x,i)=>{const opt=document.createElement("option");opt.value=String(i);opt.textContent=(x.height?x.height+"p":"HLS variant")+(x.width?" · "+x.width+"×"+x.height:"");q.appendChild(opt)});
+}
+function changeQuality(){const i=Number($("quality").value);if(i<0){if(currentEpisode)playEpisode(currentEpisode,0);return}const x=variants[i];if(x?.uri&&currentEpisode)playEpisode(currentEpisode,0,x.uri)}
+function destroyPlayer(){if(hls){hls.destroy();hls=null}const v=$("video");v.pause();v.removeAttribute("src");v.load()}
+async function playEpisode(e,pos=0,selectedSource=null){
+ currentEpisode=e;currentIndex=episodes.findIndex(x=>String(x.id)===String(e.id));
+ $("player").classList.add("open");document.body.style.overflow="hidden";
+ $("playerTitle").textContent=(currentSeries?.title||"ARY+")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+(e.title||"Video");
+ $("playerNote").textContent="Finding available playlist…";destroyPlayer();
+ try{
+  const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
+  variants=(d.stream?.variants||[]).filter(x=>x?.uri);
+  const source=selectedSource||d.stream?.source||d.stream?.best?.uri;
+  if(!source)throw Error("No accessible stream or playlist is available.");
+  setQualityOptions();attachStream(source,pos);
+ }catch(err){$("playerNote").textContent=err.message}
+}
+function attachStream(source,pos){
+ const v=$("video");v.controls=true;v.playsInline=true;
+ v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=pos;v.play().catch(()=>{$("playerNote").textContent="Press Play to start."})};
+ v.ontimeupdate=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime)};
+ v.onplay=()=>{$("playerNote").textContent="Streaming in page."};
+ v.onpause=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime,true)};
+ v.onended=()=>{if(currentEpisode)saveWatch(currentEpisode,v.duration,true)};
+ if(/\.mp4(?:$|\?)/i.test(source)){v.src=source;$("playerNote").textContent="Direct video source";return}
+ if(window.Hls&&Hls.isSupported()){
+  hls=new Hls({enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,backBufferLength:30});
+  hls.on(Hls.Events.ERROR,(_,d)=>{if(!d?.fatal)return;if(d.type===Hls.ErrorTypes.NETWORK_ERROR){$("playerNote").textContent="Network error · retrying";hls.startLoad()}else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){$("playerNote").textContent="Recovering media…";hls.recoverMediaError()}else $("playerNote").textContent="HLS playback failed"});
+  hls.on(Hls.Events.MANIFEST_PARSED,()=>{$("playerNote").textContent="HLS ready · use video controls";if(pos>0&&v.duration>pos)v.currentTime=pos;v.play().catch(()=>{})});
+  hls.loadSource(source);hls.attachMedia(v);
+ }else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=source}
+ else throw Error("This browser cannot play HLS playlists.");
+}
 function downloadCurrent(){if(currentEpisode)downloadEpisode(currentEpisode.id)}
-
 const downloadJobs=new Map();let notificationRegistration=null;if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").then(reg=>{notificationRegistration=reg}).catch(()=>{});}
 function formatBytes(n){n=Number(n)||0;if(n<1024)return n+" B";const units=["KB","MB","GB","TB"];let i=-1;do{n/=1024;i++}while(n>=1024&&i<units.length-1);return n.toFixed(i>0?2:1)+" "+units[i]}
 function toggleDownloadCenter(){const p=$("downloadCenter");p.classList.toggle("open");if(p.classList.contains("open"))$("downloadMini").classList.remove("show")}
@@ -327,3 +372,5 @@ loadSeries();
 </nav>
 </body>
 </html>
+
+<style>#player .video-stage{inset:0;background:#000}#player .video-stage video{width:100%;height:100%;object-fit:contain}#player .player-top{z-index:22;gap:10px;flex-wrap:wrap}#player .player-top #playerNote{font-size:12px;color:#d2d6df}#player .player-bottom{z-index:22;pointer-events:auto}#player #quality{background:#11151d;color:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:8px;max-width:45vw}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
