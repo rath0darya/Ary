@@ -1160,39 +1160,48 @@ def _job_update(job_id: str, **values: Any):
 
 
 def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, resolution: str):
-    _job_update(job_id, state="downloading", quality=quality, resolution=resolution)
+    _job_update(job_id, state="downloading", quality=quality, resolution=resolution, percent=0)
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-nostats",
         "-headers", "Referer: " + ARY_WEB + "/\r\nOrigin: " + ARY_WEB + "\r\n",
         "-i", stream_url,
         "-c", "copy",
         "-movflags", "+faststart",
+        "-progress", "pipe:1",
         str(output),
     ]
     try:
         started = time.time()
         process = subprocess.Popen(
             command,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            bufsize=1,
         )
-        while True:
-            line = process.stderr.readline() if process.stderr else ""
-            if not line and process.poll() is not None:
-                break
-            if output.exists():
-                size = output.stat().st_size
-                elapsed = max(0.1, time.time() - started)
-                _job_update(
-                    job_id,
-                    size=size,
-                    speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s",
-                )
+        # FFmpeg progress output is machine-readable and independent of terminal width.
+        if process.stdout:
+            for line in process.stdout:
+                line = line.strip()
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key == "total_size":
+                    try:
+                        size = max(0, int(value))
+                        elapsed = max(0.1, time.time() - started)
+                        _job_update(job_id, size=size, speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s")
+                    except ValueError:
+                        pass
+                elif key == "speed" and value not in {"N/A", "0x"}:
+                    _job_update(job_id, speed=value)
+                elif key == "progress" and value == "end":
+                    _job_update(job_id, percent=99)
         code = process.wait()
+        error_text = process.stderr.read().strip() if process.stderr else ""
         if code != 0:
-            raise RuntimeError((process.stderr.read() if process.stderr else "").strip() or f"ffmpeg exited with {code}")
+            raise RuntimeError(error_text or f"ffmpeg exited with {code}")
         if not output.exists() or output.stat().st_size == 0:
             raise RuntimeError("FFmpeg completed without creating a file.")
 
@@ -1206,10 +1215,9 @@ def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, r
             if check.returncode != 0:
                 raise RuntimeError("ffprobe could not validate the downloaded file.")
         size = output.stat().st_size
-        _job_update(job_id, state="completed", percent=100, size=size, filename=str(output))
+        _job_update(job_id, state="completed", percent=100, size=size, speed="", filename=str(output))
     except Exception as exc:
         _job_update(job_id, state="error", error=str(exc), filename=str(output))
-
 
 def start_download(
     series_id: str,
