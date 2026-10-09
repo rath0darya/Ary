@@ -1279,6 +1279,19 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            if path == "/sw.js":
+                file = WEB_DIR / "sw.js"
+                if not file.exists():
+                    return json_response(self, {"ok": False, "error": "Service worker not found."}, 404)
+                body = file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/javascript; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+
             if path in ("/", "/index.html"):
                 file = WEB_DIR / "index.html"
                 if not file.exists():
