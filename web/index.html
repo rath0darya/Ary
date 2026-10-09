@@ -38,7 +38,14 @@ button,input,select{font:inherit}button{cursor:pointer;color:inherit}button:focu
 .hero h1{font-size:clamp(48px,7vw,94px);line-height:.9;margin:13px 0 20px;letter-spacing:-4.5px;max-width:900px}
 .hero-desc{max-width:650px;color:#c2c8d5;line-height:1.75;font-size:15px;margin:0}
 .hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:25px}.btn{border:1px solid var(--line-strong);border-radius:14px;padding:12px 17px;background:rgba(255,255,255,.07);font-weight:850;backdrop-filter:blur(15px);transition:.18s transform,.18s background}.btn:hover{transform:translateY(-2px);background:rgba(255,255,255,.12)}.btn.primary{background:#fff;color:#08090d;border-color:#fff}
-main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}.section{margin:44px 0}.section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:15px}.title{font-size:23px;letter-spacing:-.7px;margin:0}.count{color:var(--muted2);font-size:12px}
+main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
+.live-check{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:22px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(125deg,rgba(255,23,68,.09),rgba(96,88,255,.07)),rgba(255,255,255,.025);box-shadow:var(--shadow)}
+.live-check h2{margin:7px 0 8px;font-size:clamp(22px,3vw,30px);letter-spacing:-.8px}
+.live-check p{margin:0;color:#aab2c2;font-size:13px;line-height:1.65}
+.live-actions{display:flex;gap:9px;flex-wrap:wrap}
+.live-status{margin-top:13px;font-size:13px;color:#aeb6c7;line-height:1.6;overflow-wrap:anywhere}
+.live-status strong{color:#fff}
+@media(max-width:700px){.live-check{grid-template-columns:1fr;padding:17px}.live-actions{display:grid;grid-template-columns:1fr 1fr}.live-actions .btn{padding:11px 9px;font-size:12px}}.section{margin:44px 0}.section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:15px}.title{font-size:23px;letter-spacing:-.7px;margin:0}.count{color:var(--muted2);font-size:12px}
 .chips{display:flex;gap:8px;overflow:auto;padding:3px 0 10px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}.chip{flex:0 0 auto;border:1px solid var(--line);background:rgba(255,255,255,.045);color:#aeb5c5;border-radius:999px;padding:9px 15px;font-size:12px;font-weight:850;backdrop-filter:blur(14px);transition:.16s}.chip:hover{border-color:var(--line-strong);color:#fff}.chip.active{background:#fff;color:#08090d;border-color:#fff}
 .tools{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:22px;padding:14px;backdrop-filter:blur(22px);box-shadow:var(--shadow)}
 .filters{display:grid;grid-template-columns:minmax(250px,2fr) repeat(4,minmax(120px,1fr)) auto auto;gap:8px}.filter{min-width:0;height:44px;background:rgba(4,6,10,.72);color:#fff;border:1px solid var(--line);border-radius:13px;padding:0 12px;outline:0}.filter::placeholder{color:#71798b}
@@ -102,6 +109,20 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}.section{margin:44p
 </section>
 
 <main>
+<section class="section" id="liveCheckSection">
+ <div class="live-check">
+  <div>
+   <div class="eyebrow">ARY DIGITAL LIVE · MANUAL CHECK</div>
+   <h2>Check the live broadcast</h2>
+   <p>Check whenever you choose. Nothing runs in the background and no schedule is created. This checks whether a live HLS playlist is discoverable from the public page.</p>
+   <div id="liveStatus" class="live-status" aria-live="polite">Not checked yet.</div>
+  </div>
+  <div class="live-actions">
+   <button id="liveCheckButton" class="btn primary" onclick="checkLiveNow()">↻ Check now</button>
+   <a class="btn" href="https://live.arydigital.tv/" target="_blank" rel="noopener">Open ARY Live ↗</a>
+  </div>
+ </div>
+</section>
 <section id="continueSection" class="section continue" style="display:none"><div class="section-head"><h2 class="title">Continue Watching</h2></div><div id="continueRow" class="content-row"></div></section>
 <section class="section"><div class="section-head"><h2 class="title">Recently Discovered</h2><span id="recentCount" class="count"></span></div><div id="recentRow" class="content-row"><div class="loading">Loading…</div></div></section>
 <section id="browse" class="section">
@@ -227,6 +248,16 @@ function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpi
 function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow=""}
 function heroPlay(){if(series[0])openSeries(series[0].id)}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
+async function checkLiveNow(){
+ const button=$("liveCheckButton"),status=$("liveStatus");
+ button.disabled=true;button.textContent="Checking…";status.textContent="Checking ARY Digital Live now. This may take a few seconds.";
+ try{
+  const d=await get("/api/live/check");
+  const label=d.available?"LIVE PLAYLIST DETECTED":"LIVE NOT CONFIRMED";
+  status.innerHTML="<strong>"+esc(label)+"</strong><br>Checked: "+esc(d.checked_at||"just now")+"<br>"+esc(d.reason||"No further details.")+(Number.isFinite(d.candidate_count)?"<br>HLS candidates found: "+d.candidate_count:"")+"<br><span>Check result only — recording is not started by this button.</span>";
+ }catch(e){status.textContent="Check failed: "+e.message}
+ finally{button.disabled=false;button.textContent="↻ Check again"}
+}
 async function updateMetadata(){try{await get("/api/catalogue/metadata?start=1");$("metadataStatus").textContent="Metadata update started…";clearInterval(metadataTimer);metadataTimer=setInterval(async()=>{try{const d=await get("/api/catalogue/metadata");$("metadataStatus").textContent="Metadata "+d.done+"/"+d.total+" · "+d.state;if(d.state==="completed"||d.state==="error"){clearInterval(metadataTimer);await loadSeries(false)}}catch{}},1000)}catch(e){toast(e.message)}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2200)}
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
