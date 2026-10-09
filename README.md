@@ -1,6 +1,6 @@
-# ARY Episode Watcher
+# Dar-E-Nijaat Episode Watcher
 
-Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized media downloader.
+Termux-friendly Dar-E-Nijaat episode interface with an in-app player and download manager. Playback and downloading require an accessible direct media source you are authorized to use; an episode webpage URL is not itself a video stream.
 
 ## Features
 
@@ -14,7 +14,7 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 - Netflix/Prime-style home catalogue with All, Drama, Telefilms, Shows, Movies, Comedy, Romance, Action, Sports, News and metadata-driven genre rows.
 - Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
 - Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
-- Clickable ARY Plus fallback links for every discovered series.
+- Episode cards provide in-app Stream and Download actions instead of redirecting as the primary action.
 - Browser HLS playback using HLS.js when the source permits browser playback.
 - Manual ARY Digital Live availability check from the website interface whenever you choose.
 - No external AI/API service.
