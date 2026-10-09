@@ -106,6 +106,8 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
 /* Dar-E-Nijaat focused mode */
 #liveCheckSection{display:none!important}
 </style>
+
+<style>#player .video-stage{inset:0;background:#000}#player .video-stage video{width:100%;height:100%;object-fit:contain}#player .player-top{z-index:22;gap:10px;flex-wrap:wrap}#player .player-top #playerNote{font-size:12px;color:#d2d6df}#player .player-bottom{z-index:22;pointer-events:auto}#player #quality{background:#11151d;color:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:8px;max-width:45vw}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
 </head>
 <body>
 <header class="top">
@@ -356,11 +358,7 @@ async function updateMetadata(){try{await get("/api/catalogue/metadata?start=1")
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2200)}
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("liveModal").classList.contains("open"))closeLivePlayer()});$("liveModal").addEventListener("click",e=>{if(e.target===$("liveModal"))closeLivePlayer()});
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
-$("videoStage").addEventListener("touchstart",startTouch,{passive:true});$("videoStage").addEventListener("touchmove",moveTouch,{passive:true});$("videoStage").addEventListener("touchend",endTouch,{passive:true});
-$("videoStage").addEventListener("dblclick",e=>{if(locked)return;const side=e.clientX<innerWidth*.5?"left":"right";seek(side==="left"?-10:10)});
-$("videoStage").addEventListener("click",e=>{if(e.target.closest(".gesture"))return;if(!locked)toggleUI()});
-$("player").addEventListener("mousemove",showUI);$("player").addEventListener("touchstart",showUI,{passive:true});
-document.addEventListener("keydown",e=>{if(!$("player").classList.contains("open"))return;if(e.key===" "){e.preventDefault();togglePlay()}else if(e.key==="ArrowLeft")seek(-10);else if(e.key==="ArrowRight")seek(10);else if(e.key==="ArrowUp")volumeGesture(.05);else if(e.key==="ArrowDown")volumeGesture(-.05);else if(e.key.toLowerCase()==="f")toggleFullscreen();else if(e.key==="Escape")closePlayer()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("player").classList.contains("open"))closePlayer()});
 window.addEventListener("beforeunload",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,true)});document.addEventListener("visibilitychange",()=>{if(document.hidden&&currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,true)});
 loadSeries();
 </script>
@@ -372,5 +370,3 @@ loadSeries();
 </nav>
 </body>
 </html>
-
-<style>#player .video-stage{inset:0;background:#000}#player .video-stage video{width:100%;height:100%;object-fit:contain}#player .player-top{z-index:22;gap:10px;flex-wrap:wrap}#player .player-top #playerNote{font-size:12px;color:#d2d6df}#player .player-bottom{z-index:22;pointer-events:auto}#player #quality{background:#11151d;color:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:8px;max-width:45vw}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
