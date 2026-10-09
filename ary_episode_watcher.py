@@ -987,6 +987,13 @@ def _episode_api_candidates(text: str, series_id: str) -> list[str]:
     return candidates[:40]
 
 
+# Numeric IDs recovered from the project's earlier stream-inspection history.
+# Keep app-facing episode IDs separate so the UI remains stable.
+DAR_E_NIJAAT_API_IDS = {
+    15: "6aaeb19765a92de0f19da7e4",
+    16: "6ab6818de2d45a788e51d21a",
+}
+
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
@@ -996,7 +1003,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     # Use official episode pages rather than inventing direct stream/download URLs.
     if series_id.lower() in {"dar-e-nijaat", "dar_e_nijaat", "dar-e-nijaat-series"}:
         with CACHE_LOCK:
-            if not force and CACHE.get(key) and all(x.get("official_url") for x in CACHE[key]):
+            if not force and CACHE.get(key) and all(x.get("official_url") and ("api_id" in x or x.get("number") not in DAR_E_NIJAAT_API_IDS) for x in CACHE[key]):
                 return CACHE[key]
         guide_url = "https://arydigital.tv/drama/dar-e-nijaat/"
         page = http_text(guide_url, {"Referer": "https://arydigital.tv/"}, timeout=30)
@@ -1013,6 +1020,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             episode_numbers = list(range(1, 21))
         episodes = [{
             "id": f"dar-e-nijaat-episode-{n}",
+            "api_id": DAR_E_NIJAAT_API_IDS.get(n),
             "number": n,
             "title": f"Dar-E-Nijaat Episode {n}",
             "date": None,
@@ -1311,7 +1319,7 @@ def start_download(
     series_name: str = "Series",
 ) -> dict[str, Any]:
     episode = find_episode(series_id, episode_id)
-    info = inspect_episode_stream(episode_id, episode.get("stream"))
+    info = inspect_episode_stream(episode.get("api_id") or episode_id, episode.get("stream"))
     best = info.get("best")
     if not best or not best.get("uri"):
         raise RuntimeError("No directly downloadable, non-DRM video source is available.")
@@ -1445,7 +1453,7 @@ class Handler(BaseHTTPRequestHandler):
                 return json_response(self, {
                     "ok": True,
                     "episode": episode,
-                    "stream": inspect_episode_stream(eid, episode.get("stream")),
+                    "stream": inspect_episode_stream(episode.get("api_id") or eid, episode.get("stream")),
                 })
 
             if path == "/api/download":
