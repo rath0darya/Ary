@@ -105,3 +105,23 @@ The app selects the highest HLS resolution, but resolution alone does not guaran
     tests/test_core.py
     run.sh
     .gitignore
+
+
+## Modern web UI and Termux menu
+
+The responsive web interface includes catalogue search and filters, poster art, an in-page ARY Digital Live viewer (the official page may block embedding in some browsers), a download manager panel, live size/speed updates, and optional browser notifications. Download notifications require granting permission in the browser; the **Save file to device** link still needs a user tap so Android/browser download handling can take over. The tool does not record the live broadcast.
+
+Install the Termux commands from the repository directory:
+
+    chmod +x install-termux.sh
+    ./install-termux.sh
+
+Then use:
+
+    arymenu
+
+Choose **Start / restart web interface** or start it directly with:
+
+    aryweb
+
+Open http://127.0.0.1:8787 in the browser. The menu also provides server health, catalogue refresh, a download-folder listing, and the local web address. The menu uses only Python's standard library and adapts to narrow terminal widths.
