@@ -80,6 +80,29 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
 }
 @media(max-width:380px){.content-row{gap:12px}.card-name{font-size:12px}.hero h1{font-size:40px}.hero-actions .btn{width:100%}.player-actions .pbtn:nth-of-type(4),.player-actions .pbtn:nth-of-type(5){display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* Download center and embedded live viewer */
+.live-open{background:linear-gradient(120deg,#ff1744,#a60c45);border-color:transparent;color:#fff}
+.live-modal{display:none;position:fixed;z-index:450;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(18px);padding:clamp(8px,2vw,24px);align-items:center;justify-content:center}
+.live-modal.open{display:flex}
+.live-shell{width:min(1180px,100%);height:min(88dvh,780px);display:flex;flex-direction:column;background:#0c0f17;border:1px solid var(--line-strong);border-radius:22px;overflow:hidden;box-shadow:var(--shadow)}
+.live-shell-head{display:flex;align-items:center;gap:12px;padding:12px 15px;border-bottom:1px solid var(--line);flex-shrink:0}
+.live-shell-head strong{font-size:14px}.live-shell-head .spacer{flex:1}
+.live-frame{width:100%;height:100%;border:0;background:#000;flex:1}
+.live-shell-note{padding:10px 14px;color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid var(--line)}
+.download-center{position:fixed;z-index:390;right:14px;bottom:14px;width:min(420px,calc(100vw - 28px));max-height:min(58dvh,520px);overflow:auto;padding:14px;border:1px solid var(--line-strong);border-radius:20px;background:rgba(10,13,20,.94);backdrop-filter:blur(24px);box-shadow:var(--shadow);display:none}
+.download-center.open{display:block}
+.download-center-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}.download-center-head strong{font-size:14px}.download-center-head .spacer{flex:1}
+.download-list{display:grid;gap:9px}.download-item{border:1px solid var(--line);border-radius:14px;padding:11px;background:#ffffff05;min-width:0}
+.download-item-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}.download-item-title{font-size:12px;font-weight:850;overflow-wrap:anywhere}.download-item-status{font-size:11px;color:#b3bbca;margin-top:7px;line-height:1.5;overflow-wrap:anywhere}
+.download-track{height:5px;border-radius:99px;background:#ffffff16;overflow:hidden;margin-top:9px}.download-track i{display:block;height:100%;width:30%;background:linear-gradient(90deg,var(--accent),#ff9d5c);border-radius:99px;animation:downloadpulse 1.2s ease-in-out infinite alternate}
+.download-track.done i{width:100%;animation:none;background:#43d6a1}.download-item a{display:inline-flex;margin-top:9px;color:#08090d;background:#fff;text-decoration:none;padding:9px 12px;border-radius:10px;font-size:12px;font-weight:900}
+.download-mini{position:fixed;z-index:130;right:14px;bottom:84px;border:1px solid var(--line-strong);background:#0c0f17eF;border-radius:999px;padding:10px 13px;box-shadow:var(--shadow);font-size:12px;font-weight:850;display:none}
+.download-mini.show{display:block}
+@keyframes downloadpulse{from{transform:translateX(-25%);opacity:.55}to{transform:translateX(160%);opacity:1}}
+@media(max-width:700px){.live-modal{padding:0}.live-shell{width:100%;height:100dvh;border-radius:0}.download-center{right:8px;bottom:78px;width:calc(100vw - 16px);max-height:52dvh}.download-mini{right:10px;bottom:80px}}
+@media(prefers-reduced-motion:reduce){.download-track i{animation:none}}
+
 </style>
 </head>
 <body>
@@ -118,7 +141,7 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
    <div id="liveStatus" class="live-status" aria-live="polite">Not checked yet.</div>
   </div>
   <div class="live-actions">
-   <button id="liveCheckButton" class="btn primary" onclick="checkLiveNow()">↻ Check now</button>
+   <button id="liveCheckButton" class="btn primary" onclick="checkLiveNow()">↻ Check now</button><button class="btn live-open" onclick="openLivePlayer()">▶ Watch live here</button>
    <a class="btn" href="https://live.arydigital.tv/" target="_blank" rel="noopener">Open ARY Live ↗</a>
   </div>
  </div>
@@ -177,7 +200,20 @@ main{width:min(1400px,100%);margin:auto;padding:0 28px 100px}
   <div class="setline"><span>Orientation</span><button class="pbtn" onclick="toggleOrientation()">Rotate</button></div>
  </div>
 </section>
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<button id="downloadMini" class="download-mini" onclick="toggleDownloadCenter()">↓ Downloads <span id="downloadBadge">0</span></button>
+<section id="downloadCenter" class="download-center" aria-label="Download manager">
+ <div class="download-center-head"><strong>↓ Download manager</strong><span class="spacer"></span><button class="pbtn" onclick="enableDownloadNotifications()" title="Enable browser notifications">♧</button><button class="pbtn" onclick="toggleDownloadCenter()">×</button></div>
+ <div id="downloadPermission" class="download-item-status">In-page progress is enabled. Tap ♧ to allow browser notifications.</div>
+ <div id="downloadList" class="download-list"><div class="download-item-status">No downloads yet.</div></div>
+</section>
+<section id="liveModal" class="live-modal" role="dialog" aria-modal="true" aria-label="ARY Digital Live">
+ <div class="live-shell">
+  <div class="live-shell-head"><strong>🔴 ARY Digital Live</strong><span class="spacer"></span><a class="btn" href="https://live.arydigital.tv/" target="_blank" rel="noopener">Open official player ↗</a><button class="pbtn" onclick="closeLivePlayer()" aria-label="Close live player">×</button></div>
+  <iframe id="liveFrame" class="live-frame" title="Official ARY Digital Live player" src="about:blank" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  <div class="live-shell-note">This embeds the official live page when its security policy allows it. If playback is blocked in the embedded view, use “Open official player”. This is live viewing only; no live recording is started.</div>
+ </div>
+</section>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -242,8 +278,19 @@ function destroyPlayer(){clearTimeout(uiTimer);if(hls){hls.destroy();hls=null}co
 async function playEpisode(e,pos=0){currentEpisode=e;currentIndex=episodes.findIndex(x=>x.id===e.id);$("player").classList.add("open");document.body.style.overflow="hidden";$("playerTitle").textContent=(currentSeries?.title||"ARY+")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+ (e.title||"Video");$("settings").classList.remove("open");locked=false;$("lockButton").textContent="🔓";$("player").classList.remove("locked");$("quality").innerHTML="<option>Loading…</option>";$("playerNote").textContent="Finding HLS stream…";showUI();destroyPlayer();try{const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));variants=(d.stream?.variants||[]).filter(x=>x?.uri);const source=d.stream?.source||d.stream?.best?.uri;if(!source)throw Error("No playable stream returned.");attachStream(source,pos)}catch(err){$("playerNote").textContent=err.message+" · Try Open ARY+.";showUI()}}
 function attachStream(source,pos){const v=$("video");v.style.objectFit=$("fit").value;const saved=Number(localStorage.getItem("ary-brightness")||"1");setBrightness(saved);if(window.Hls&&Hls.isSupported()){hls=new Hls({enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,backBufferLength:30});hls.on(Hls.Events.ERROR,(_,d)=>{if(!d?.fatal)return;if(d.type===Hls.ErrorTypes.NETWORK_ERROR){$("playerNote").textContent="Network error · retrying";hls.startLoad()}else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){$("playerNote").textContent="Media error · recovering";hls.recoverMediaError()}else $("playerNote").textContent="HLS playback failed"});hls.on(Hls.Events.MANIFEST_PARSED,()=>{setQualityOptions();$("playerNote").textContent="HLS ready · Auto quality";if(pos>0)v.currentTime=pos;v.play().catch(()=>{$("playerNote").textContent="Tap Play to start"})});hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{$("captionStatus").textContent=hls.subtitleTracks?.length?"Captions available":"Captions unavailable"});hls.loadSource(source);hls.attachMedia(v)}else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=source;v.onloadedmetadata=()=>{setQualityOptions();if(pos>0)v.currentTime=pos;v.play().catch(()=>{})}}else throw Error("This browser cannot play HLS.");v.ontimeupdate=sync;v.onplay=()=>{sync();showUI()};v.onpause=()=>{saveWatch(currentEpisode,v.currentTime,true);showUI()};v.onended=()=>{saveWatch(currentEpisode,v.duration,true);if(currentIndex>=0&&currentIndex<episodes.length-1){setTimeout(()=>playEpisode(episodes[currentIndex+1]),1500)}};v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=pos;sync()}}
 function downloadCurrent(){if(currentEpisode)downloadEpisode(currentEpisode.id)}
-async function downloadEpisode(id,button){const box=$("status-"+CSS.escape(id));if(box)box.textContent="Finding highest quality…";if(button)button.disabled=true;try{const e=episodes.find(x=>x.id===id),d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));pollDownload(d.job.id,box,button)}catch(err){if(box)box.textContent="Download unavailable: "+err.message;if(button)button.disabled=false}}
-async function pollDownload(id,box,b){if(!box)return;try{const j=(await get("/api/download/"+id)).job;if(j.state==="completed"){box.innerHTML='<a href="/api/download/file/'+encodeURIComponent(id)+'" download>✓ Download '+esc(j.quality||"Highest")+' · '+esc(j.resolution||"")+'</a>';if(b)b.disabled=false}else if(j.state==="error"){box.textContent="Download failed: "+(j.error||"Unknown");if(b)b.disabled=false}else{box.textContent=(j.state==="downloading"?"Downloading ":"Preparing ")+(j.quality||"highest")+" · "+(j.resolution||"")+"…";setTimeout(()=>pollDownload(id,box,b),1200)}}catch{setTimeout(()=>pollDownload(id,box,b),2000)}}
+
+const downloadJobs=new Map();
+function formatBytes(n){n=Number(n)||0;if(n<1024)return n+" B";const units=["KB","MB","GB","TB"];let i=-1;do{n/=1024;i++}while(n>=1024&&i<units.length-1);return n.toFixed(i>0?2:1)+" "+units[i]}
+function toggleDownloadCenter(){const p=$("downloadCenter");p.classList.toggle("open");if(p.classList.contains("open"))$("downloadMini").classList.remove("show")}
+async function enableDownloadNotifications(){if(!("Notification" in window)){$("downloadPermission").textContent="This browser does not support system notifications; in-page download alerts still work.";return}try{const permission=await Notification.requestPermission();$("downloadPermission").textContent=permission==="granted"?"Browser notifications enabled.":"Notifications not enabled; keep the download manager open to see status.";if(permission==="granted")notifyBrowser("ARY Episode Watcher","Download notifications are enabled.");}catch{$("downloadPermission").textContent="Could not request notification permission in this browser."}}
+function notifyBrowser(title,body){if("Notification" in window&&Notification.permission==="granted"&&document.visibilityState!=="visible"){try{new Notification(title,{body,tag:"ary-download-"+Date.now()})}catch{}}}
+function renderDownloadJobs(){const list=$("downloadList");const items=[...downloadJobs.values()].sort((a,b)=>b.updated-a.updated);$("downloadBadge").textContent=String(items.filter(x=>!["completed","error"].includes(x.state)).length);$("downloadMini").classList.toggle("show",items.length>0&&!$("downloadCenter").classList.contains("open"));if(!items.length){list.innerHTML='<div class="download-item-status">No downloads yet.</div>';return}list.innerHTML=items.map(j=>{const done=j.state==="completed",failed=j.state==="error",status=done?"Ready to save to device":failed?("Failed: "+(j.error||"Unknown error")):(j.state==="downloading"?"Downloading":"Preparing download")+" · "+formatBytes(j.size||0)+(j.speed?" · "+esc(j.speed):"");return '<article class="download-item"><div class="download-item-top"><div class="download-item-title">'+esc(j.title||j.filename||"Episode download")+'</div><span class="count">'+(done?"✓":failed?"!":"…")+'</span></div><div class="download-item-status">'+esc(status)+'</div><div class="download-track '+(done?"done":"")+'"><i></i></div>'+(done?'<a href="/api/download/file/'+encodeURIComponent(j.id)+'" download="'+esc((j.filename||"episode.mp4").split(/[\\/]/).pop())+'" onclick="downloadLinkClicked(\''+esc(j.id)+'\')">↓ Save file to device</a>':"")+'</article>'}).join("")}
+function downloadLinkClicked(id){const j=downloadJobs.get(id);if(j){j.saved=true;j.updated=Date.now();renderDownloadJobs();toast("Browser download started. Check your browser Downloads.");notifyBrowser("Download started",j.title||"Your file is being saved.")}}
+async function downloadEpisode(id,button){const box=$("status-"+CSS.escape(id));if(box)box.textContent="Preparing highest-quality download…";if(button)button.disabled=true;toggleDownloadCenterIfNeeded();try{const e=episodes.find(x=>x.id===id),title=(currentSeries?.title||"ARY+")+" · "+(e?.number!=null?"EP "+e.number+" · ":"")+(e?.title||"Episode");const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));const job={...d.job,title,updated:Date.now()};downloadJobs.set(job.id,job);renderDownloadJobs();if(box)box.textContent="Download queued · progress is shown in Download manager.";toast("Download started — open Download manager for status.");notifyBrowser("Download started",title);pollDownload(job.id,id,button);if($("downloadCenter").classList.contains("open"))renderDownloadJobs()}catch(err){if(box)box.textContent="Download unavailable: "+err.message;if(button)button.disabled=false;toast("Download failed: "+err.message)}}
+function toggleDownloadCenterIfNeeded(){const p=$("downloadCenter");if(!p.classList.contains("open")){p.classList.add("open");$("downloadMini").classList.remove("show")}}
+async function pollDownload(jobId,episodeId,button){try{const response=await get("/api/download/"+encodeURIComponent(jobId));const previous=downloadJobs.get(jobId)||{};const job={...previous,...response.job,title:previous.title||response.job.episode_title||"Episode download",updated:Date.now()};downloadJobs.set(jobId,job);renderDownloadJobs();const box=$("status-"+CSS.escape(episodeId));if(job.state==="completed"){if(box)box.textContent="✓ Download ready · "+formatBytes(job.size)+" · tap Save file in Download manager.";if(button)button.disabled=false;if(!job.notified){job.notified=true;notifyBrowser("Download ready",job.title+" is ready. Open the download manager to save it.");toast("Download ready — tap Save file in Download manager.")}return}else if(job.state==="error"){if(box)box.textContent="Download failed: "+(job.error||"Unknown error");if(button)button.disabled=false;toast("Download failed: "+(job.error||"Unknown error"));return}else{if(box)box.textContent=(job.state==="downloading"?"Downloading":"Preparing")+" · "+formatBytes(job.size)+" · "+(job.speed||"");setTimeout(()=>pollDownload(jobId,episodeId,button),1200)}}catch(e){setTimeout(()=>pollDownload(jobId,episodeId,button),2200)}}
+function openLivePlayer(){const modal=$("liveModal");modal.classList.add("open");if($("liveFrame").src==="about:blank")$("liveFrame").src="https://live.arydigital.tv/";document.body.style.overflow="hidden"}
+function closeLivePlayer(){ $("liveModal").classList.remove("open");$("liveFrame").src="about:blank";document.body.style.overflow=$("detail").classList.contains("open")||$("player").classList.contains("open")?"hidden":""}
 function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpisode,v.currentTime||0,true);destroyPlayer();$("player").classList.remove("open");$("settings").classList.remove("open");document.body.style.overflow=$("detail").classList.contains("open")?"hidden":""}
 function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow=""}
 function heroPlay(){if(series[0])openSeries(series[0].id)}
@@ -260,6 +307,7 @@ async function checkLiveNow(){
 }
 async function updateMetadata(){try{await get("/api/catalogue/metadata?start=1");$("metadataStatus").textContent="Metadata update started…";clearInterval(metadataTimer);metadataTimer=setInterval(async()=>{try{const d=await get("/api/catalogue/metadata");$("metadataStatus").textContent="Metadata "+d.done+"/"+d.total+" · "+d.state;if(d.state==="completed"||d.state==="error"){clearInterval(metadataTimer);await loadSeries(false)}}catch{}},1000)}catch(e){toast(e.message)}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2200)}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("liveModal").classList.contains("open"))closeLivePlayer()});$("liveModal").addEventListener("click",e=>{if(e.target===$("liveModal"))closeLivePlayer()});
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
 $("videoStage").addEventListener("touchstart",startTouch,{passive:true});$("videoStage").addEventListener("touchmove",moveTouch,{passive:true});$("videoStage").addEventListener("touchend",endTouch,{passive:true});
 $("videoStage").addEventListener("dblclick",e=>{if(locked)return;const side=e.clientX<innerWidth*.5?"left":"right";seek(side==="left"?-10:10)});
