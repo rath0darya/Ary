@@ -7,16 +7,25 @@ import os
 import re
 import signal
 import time
-from datetime import datetime, time as clock_time, timedelta
+from datetime import datetime, time as clock_time, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo
+
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    try:
+        TZ = ZoneInfo("Asia/Kolkata")
+    except ZoneInfoNotFoundError:
+        # India does not observe daylight-saving time, so fixed UTC+05:30
+        # is a correct fallback on minimal Termux installs without tzdata.
+        TZ = timezone(timedelta(hours=5, minutes=30), "IST")
+except ImportError:
+    TZ = timezone(timedelta(hours=5, minutes=30), "IST")
 
 LIVE_PAGE = os.environ.get("ARY_LIVE_PAGE", "https://live.arydigital.tv/")
-TZ = ZoneInfo("Asia/Kolkata")
 START_TIME = clock_time(20, 30)
 SCHEDULE_DAYS = {4, 5}  # Friday, Saturday
 POLL_SECONDS = max(10, int(os.environ.get("ARY_LIVE_POLL_SECONDS", "30")))
