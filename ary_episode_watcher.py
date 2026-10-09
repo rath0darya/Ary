@@ -1020,7 +1020,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             "stream": None,
             "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{n}/",
             "official_only": True,
-            "description": "Opens the official ARY Digital episode page.",
+            "description": "Direct playback is enabled only when a publicly exposed, non-DRM media URL is available.",
             "next_episode_id": None,
             "raw": {"source": "arydigital.tv"},
         } for n in episode_numbers]
@@ -1196,7 +1196,12 @@ def _find_video_source(value: Any) -> str | None:
     return None
 
 
-def inspect_episode_stream(episode_id: str, source_hint: str | None = None) -> dict[str, Any]:
+def inspect_episode_stream(
+    episode_id: str,
+    source_hint: str | None = None,
+    official_url: str | None = None,
+) -> dict[str, Any]:
+    """Find a directly exposed, non-DRM media URL; never defeat access controls."""
     source = source_hint
     if not source:
         try:
@@ -1204,16 +1209,40 @@ def inspect_episode_stream(episode_id: str, source_hint: str | None = None) -> d
             source = _find_video_source(data)
         except Exception:
             source = None
-    if not source:
-        raise RuntimeError("No video stream was returned for this episode.")
 
-    playlist = http_text(source, {"Referer": ARY_WEB + "/"}, timeout=30)
+    # Dar-E-Nijaat is listed on ARY Digital, not the ARY+ title API. Inspect
+    # the public episode HTML for a directly exposed MP4/HLS URL only.
+    if not source and official_url:
+        page = http_text(official_url, {"Referer": "https://arydigital.tv/"}, timeout=30)
+        candidates = _extract_video_sources(page)
+        source = next((u for u in candidates if ".m3u8" in u.lower()), None)
+        source = source or next((u for u in candidates if ".mp4" in u.lower()), None)
+
+    if not source:
+        raise RuntimeError(
+            "No public direct video URL was found. This episode may require the official player, "
+            "a login, or DRM; the tool will not bypass those protections."
+        )
+
+    if ".mp4" in source.lower().split("?", 1)[0]:
+        return {
+            "source": source,
+            "variants": [],
+            "best": {"uri": source, "width": None, "height": None, "bandwidth": None},
+            "media_type": "video/mp4",
+        }
+
+    playlist = http_text(source, {"Referer": "https://arydigital.tv/" if official_url else ARY_WEB + "/"}, timeout=30)
     parsed = parse_hls_master(playlist, source)
     best = choose_best_variant(parsed["variants"])
+    # A media playlist can have no master variants; it is still a valid HLS source.
+    if not best and ".m3u8" in source.lower():
+        best = {"uri": source, "width": None, "height": None, "bandwidth": None}
     return {
         "source": source,
         "variants": parsed["variants"],
         "best": best,
+        "media_type": "application/vnd.apple.mpegurl",
     }
 
 
@@ -1297,13 +1326,13 @@ def start_download(
     series_name: str = "Series",
 ) -> dict[str, Any]:
     episode = find_episode(series_id, episode_id)
-    info = inspect_episode_stream(episode_id, episode.get("stream"))
+    info = inspect_episode_stream(episode_id, episode.get("stream"), episode.get("official_url"))
     best = info.get("best")
-    if not best:
-        raise RuntimeError("No usable HLS variant was advertised.")
+    if not best or not best.get("uri"):
+        raise RuntimeError("No directly downloadable, non-DRM video source is available.")
 
-    quality = f'{best.get("height", "?")}p'
-    resolution = f'{best.get("width", "?")}x{best.get("height", "?")}'
+    quality = f'{best.get("height") or "source"}p'
+    resolution = f'{best.get("width") or "?"}x{best.get("height") or "?"}'
     series_label = series_name or "Series"
     ep_label = episode_number if episode_number is not None else episode.get("number")
     title = episode_title or episode.get("title") or f"Episode {ep_label or episode_id}"
@@ -1431,7 +1460,7 @@ class Handler(BaseHTTPRequestHandler):
                 return json_response(self, {
                     "ok": True,
                     "episode": episode,
-                    "stream": inspect_episode_stream(eid, episode.get("stream")),
+                    "stream": inspect_episode_stream(eid, episode.get("stream"), episode.get("official_url")),
                 })
 
             if path == "/api/download":
