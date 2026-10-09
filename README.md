@@ -120,7 +120,7 @@ Then use:
 
     arymenu
 
-Choose **Start / restart web interface** or start it directly with:
+Choose **Start web interface in background**, then select **Open web interface in browser**. You can also start it directly with:
 
     aryweb
 
