@@ -16,11 +16,12 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 - Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
 - Clickable ARY Plus fallback links for every discovered series.
 - Browser HLS playback using HLS.js when the source permits browser playback.
+- Scheduled Friday/Saturday live availability monitoring at 8:30 PM India time.
 - No external AI/API service.
 - API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
 - Designed for Android/Termux.
 
-Use the downloader only for media you are authorized to download.
+Use the downloader only for media you are authorized to download. The live scheduler monitors availability and does not record or archive the live broadcast.
 
 ## Requirements
 
@@ -37,7 +38,7 @@ Python dependencies:
 
     pip install -r requirements.txt
 
-## Run
+## Run the website
 
     python ary_episode_watcher.py
 
@@ -46,6 +47,28 @@ Then open http://127.0.0.1:8787
 For a custom port:
 
     ARYWEB_PORT=8787 python ary_episode_watcher.py
+
+## Scheduled ARY Digital live monitor
+
+The monitor checks the ARY Digital live page every Friday and Saturday starting at **8:30 PM Asia/Kolkata**. It waits for an HLS playlist to become available, logs when a live playlist is detected, and reports when repeated checks suggest the broadcast may have ended. It does **not** save video or audio.
+
+Start it in a separate Termux session:
+
+    cd ~/ary/Ary
+    python3 live_schedule.py
+
+Leave that session running and keep the device powered, online, and awake. The log is written to:
+
+    ~/.ary-episode-watcher/live-monitor.jsonl
+
+Optional settings:
+
+    ARY_LIVE_POLL_SECONDS=30
+    ARY_LIVE_ACTIVE_POLL_SECONDS=20
+    ARY_LIVE_END_FAILURES=5
+    ARY_LIVE_PAGE=https://live.arydigital.tv/
+
+The monitor currently discovers HLS playlist URLs from the page HTML. If ARY builds its player URL dynamically in JavaScript or changes its stream technology, it may report that no playlist was found; this must be verified on an actual live broadcast. It never logs signed media URLs.
 
 ## API
 
@@ -64,7 +87,7 @@ The download endpoint intentionally has no quality parameter. The server chooses
 
 Default output directory:
 
-/sdcard/Movies/ARY Episode Watcher
+    /sdcard/Movies/ARY Episode Watcher
 
 Override with:
 
@@ -91,6 +114,7 @@ The app selects the highest HLS resolution, but resolution alone does not guaran
 ## Project layout
 
     ary_episode_watcher.py
+    live_schedule.py
     web/index.html
     requirements.txt
     tests/test_core.py
