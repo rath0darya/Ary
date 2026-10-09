@@ -649,6 +649,24 @@ def _catalogue_heading(text: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 def discover_series(force: bool = False) -> list[dict[str, Any]]:
+    # This installation is intentionally focused on Dar-E-Nijaat rather than
+    # the full ARY+ catalogue. Official ARY Digital pages are the source of truth.
+    if os.environ.get("ARY_SERIES_MODE", "dar-e-nijaat").strip().lower() == "dar-e-nijaat":
+        item = {
+            "id": "dar-e-nijaat",
+            "title": "Dar-E-Nijaat",
+            "url": "https://arydigital.tv/drama/dar-e-nijaat/",
+            "image": None,
+            "content_type": "Series",
+            "catalogue_genres": ["Drama", "Romance"],
+            "genres": ["Drama", "Romance"],
+            "description": "Watch official Dar-E-Nijaat episodes on ARY Digital.",
+        }
+        with CACHE_LOCK:
+            CACHE["series"] = [item]
+        _save_catalogue_store()
+        return [item]
+
     with CACHE_LOCK:
         if not force and CACHE.get("series"):
             return CACHE["series"]
@@ -974,6 +992,43 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     if not series_id:
         raise ValueError("series is required")
     key = _series_key(series_id)
+
+    # Use official episode pages rather than inventing direct stream/download URLs.
+    if series_id.lower() in {"dar-e-nijaat", "dar_e_nijaat", "dar-e-nijaat-series"}:
+        with CACHE_LOCK:
+            if not force and CACHE.get(key) and all(x.get("official_url") for x in CACHE[key]):
+                return CACHE[key]
+        guide_url = "https://arydigital.tv/drama/dar-e-nijaat/"
+        page = http_text(guide_url, {"Referer": "https://arydigital.tv/"}, timeout=30)
+        episode_numbers = sorted({
+            int(n) for n in re.findall(
+                r"/drama/dar-e-nijaat/episode-(\d+)/?",
+                html.unescape(page),
+                re.I,
+            )
+        })
+        if not episode_numbers:
+            # Public guide currently lists episodes 1–20. These remain official
+            # page links, not claims that direct stream URLs were extracted.
+            episode_numbers = list(range(1, 21))
+        episodes = [{
+            "id": f"dar-e-nijaat-episode-{n}",
+            "number": n,
+            "title": f"Dar-E-Nijaat Episode {n}",
+            "date": None,
+            "thumbnail": None,
+            "stream": None,
+            "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{n}/",
+            "official_only": True,
+            "description": "Opens the official ARY Digital episode page.",
+            "next_episode_id": None,
+            "raw": {"source": "arydigital.tv"},
+        } for n in episode_numbers]
+        with CACHE_LOCK:
+            CACHE[key] = episodes
+        _save_catalogue_store()
+        return episodes
+
     with CACHE_LOCK:
         if not force and CACHE.get(key):
             return CACHE[key]
