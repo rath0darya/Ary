@@ -729,7 +729,22 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
     if not found:
         raise RuntimeError("Unable to discover ARY catalogue content from configured catalogue pages.")
 
-    result = sorted(found.values(), key=lambda x: x["title"].lower())
+    # ARY sometimes exposes its generic portal-shell title as if it were a
+    # movie/show. These are not actual catalogue entries and can repeat dozens
+    # of times across sports/entertainment genre pages.
+    result_items = []
+    for item in found.values():
+        title = re.sub(r"\\s+", " ", str(item.get("title") or "")).strip()
+        if title.casefold() in {
+            "ary plus - a video streaming portal",
+            "ary+ - a video streaming portal",
+            "ary plus",
+        }:
+            continue
+        if not title:
+            continue
+        result_items.append(item)
+    result = sorted(result_items, key=lambda x: x["title"].lower())
     with CACHE_LOCK:
         CACHE["series"] = result
     _save_catalogue_store()
