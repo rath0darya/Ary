@@ -44,12 +44,39 @@ def open_browser():
         print(f"Open this address in your Android browser: {url}")
 
 def start_web():
-    print(f"Starting web interface at {BASE}")
-    print("Press Ctrl+C to stop the server and return to the menu.")
     try:
-        subprocess.run([sys.executable, str(APP_DIR / "ary_episode_watcher.py")], cwd=APP_DIR, check=False)
-    except KeyboardInterrupt:
+        request_json("/api/health", timeout=2)
+        print(f"The web interface is already running at {BASE}")
+        input("\nPress Enter to return to the menu…")
+        return
+    except Exception:
         pass
+    log_dir = Path.home() / ".ary-episode-watcher"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "aryweb.log"
+    try:
+        with log_path.open("ab") as log:
+            subprocess.Popen(
+                [sys.executable, str(APP_DIR / "ary_episode_watcher.py")],
+                cwd=APP_DIR,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        print("Starting the web interface in the background…")
+        for _ in range(12):
+            time.sleep(0.5)
+            try:
+                request_json("/api/health", timeout=1)
+                print(f"Web interface is ready: {BASE}")
+                print("Choose option 2 to open it in your Android browser.")
+                input("\nPress Enter to return to the menu…")
+                return
+            except Exception:
+                continue
+        print(f"Startup is taking longer than expected. Log: {log_path}")
+    except Exception as exc:
+        print(f"Could not start the web interface: {exc}")
     input("\nPress Enter to return to the menu…")
 
 def refresh_catalogue():
@@ -86,7 +113,7 @@ def main():
         clear()
         title()
         print(status_text())
-        print("\n  [1] Start / restart web interface")
+        print("\n  [1] Start web interface in background")
         print("  [2] Open web interface in browser")
         print("  [3] Check server and FFmpeg health")
         print("  [4] Refresh catalogue (server must be running)")
