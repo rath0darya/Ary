@@ -16,12 +16,12 @@ Standalone Termux-friendly ARY episode catalogue, HLS inspector, and authorized 
 - Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
 - Clickable ARY Plus fallback links for every discovered series.
 - Browser HLS playback using HLS.js when the source permits browser playback.
-- Scheduled Friday/Saturday live availability monitoring at 8:30 PM India time.
+- Manual ARY Digital Live availability check from the website interface whenever you choose.
 - No external AI/API service.
 - API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
 - Designed for Android/Termux.
 
-Use the downloader only for media you are authorized to download. The live scheduler monitors availability and does not record or archive the live broadcast.
+Use the downloader only for media you are authorized to download. The live check is manual only: it does not schedule checks, run in the background, or record/archive the live broadcast.
 
 ## Requirements
 
@@ -48,31 +48,16 @@ For a custom port:
 
     ARYWEB_PORT=8787 python ary_episode_watcher.py
 
-## Scheduled ARY Digital live monitor
+## Manual ARY Digital live check
 
-The monitor checks the ARY Digital live page every Friday and Saturday starting at **8:30 PM Asia/Kolkata**. It waits for an HLS playlist to become available, logs when a live playlist is detected, and reports when repeated checks suggest the broadcast may have ended. It does **not** save video or audio.
+Open the website and press **Check now** in the ARY Digital Live panel whenever you want to check the broadcast. The tool checks the public live page for an accessible HLS playlist and reports the result. It does not run a scheduler, poll in the background, or record the stream. If the page loads its stream through a dynamic player API, the check may say it cannot discover the playlist even while the official player works.
 
-Start it in a separate Termux session:
-
-    cd ~/ary/Ary
-    python3 live_schedule.py
-
-Leave that session running and keep the device powered, online, and awake. The log is written to:
-
-    ~/.ary-episode-watcher/live-monitor.jsonl
-
-Optional settings:
-
-    ARY_LIVE_POLL_SECONDS=30
-    ARY_LIVE_ACTIVE_POLL_SECONDS=20
-    ARY_LIVE_END_FAILURES=5
-    ARY_LIVE_PAGE=https://live.arydigital.tv/
-
-The monitor currently discovers HLS playlist URLs from the page HTML. If ARY builds its player URL dynamically in JavaScript or changes its stream technology, it may report that no playlist was found; this must be verified on an actual live broadcast. It never logs signed media URLs.
+Official page: https://live.arydigital.tv/
 
 ## API
 
 - GET /api/health
+- GET /api/live/check (manual, on-demand check; no scheduling)
 - GET /api/series
 - GET /api/episodes?series=<series-id>
 - GET /api/stream-info?series=<series-id>&episode=<episode-id>
@@ -114,7 +99,7 @@ The app selects the highest HLS resolution, but resolution alone does not guaran
 ## Project layout
 
     ary_episode_watcher.py
-    live_schedule.py
+    live_check.py
     web/index.html
     requirements.txt
     tests/test_core.py
