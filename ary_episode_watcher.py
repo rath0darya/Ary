@@ -16,6 +16,8 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
+from live_check import inspect_live_page
+
 APP_DIR = Path(__file__).resolve().parent
 WEB_DIR = APP_DIR / "web"
 
@@ -1280,6 +1282,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not target:
                     return json_response(self, {"ok": False, "error": "url is required"}, 400)
                 return image_response(self, target)
+
+            if path == "/api/live/check":
+                result = inspect_live_page()
+                return json_response(self, {"ok": True, "checked_at": time.strftime("%Y-%m-%d %H:%M:%S %z"), **result})
 
             if path == "/api/health":
                 return json_response(self, {
