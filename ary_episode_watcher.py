@@ -1361,6 +1361,13 @@ def start_download(
     return job
 
 
+class ReusableThreadingHTTPServer(ThreadingHTTPServer):
+    """Allow quick restarts and avoid waiting for client threads on shutdown."""
+    allow_reuse_address = True
+    daemon_threads = True
+    block_on_close = False
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ARYWatcher/1.0"
 
@@ -1506,7 +1513,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     WEB_DIR.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server = ReusableThreadingHTTPServer((HOST, PORT), Handler)
     print(f"ARY Watcher listening on http://{HOST}:{PORT}", flush=True)
     print(f"Project: {APP_DIR}", flush=True)
     print("Press Ctrl+C to stop.", flush=True)
