@@ -8,7 +8,7 @@ This Android app packages the CINE•WAVE web interface, Python backend, catalog
 2. Select Actions → Build standalone Android APK → Run workflow.
 3. Wait for the build to finish.
 4. Open the completed workflow run and download the temporary cinewave-android-apk artifact.
-5. Extract the ZIP and install app-debug.apk on an Android device. If Android asks, allow installation from that source.
+5. Extract the ZIP and install app-debug.apk on an Android device. If Android asks, allow installation from that source. If you installed an earlier debug APK from a different build, uninstall that older copy first because GitHub Actions signs each debug build with a temporary key.
 
 The workflow keeps the APK as a temporary GitHub Actions artifact for 7 days. It does not publish a GitHub Release or host a permanent APK download page.
 
