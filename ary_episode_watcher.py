@@ -1154,6 +1154,8 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
 
         if api_added:
             print(f"[DAR-E-NIJAAT] ARY+ API discovered {api_added} new episode(s)", flush=True)
+        # Keep the HTML fallback in sync so it cannot add duplicate episode numbers.
+        known_numbers.update(api_seen_numbers)
 
         series_page_url = "https://arydigital.tv/drama/dar-e-nijaat/"
         candidate_numbers: set[int] = set()
