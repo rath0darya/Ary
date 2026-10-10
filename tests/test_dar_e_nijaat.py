@@ -74,6 +74,8 @@ class DarENijaatCatalogueTests(unittest.TestCase):
                 return {'episode': [episode_20], 'hasNextPage': True, 'totalPages': 2}
             if '/api/v2/cdn/pg/' in path and 'page=2' in path:
                 return {'episode': [episode_21], 'hasNextPage': False, 'totalPages': 2}
+            if path.endswith('/api/cdn/ep/' + episode_21['id']):
+                return {'videoSource': 'https://vod.aryzap.com/test/episode-21/master.m3u8'}
             return {'episode': [], 'hasNextPage': False}
         with patch('ary_episode_watcher.api_json', side_effect=api_response), patch(
             'ary_episode_watcher.http_text', return_value='<html></html>'
@@ -83,6 +85,7 @@ class DarENijaatCatalogueTests(unittest.TestCase):
         self.assertIn(21, by_number)
         self.assertEqual(by_number[21]['id'], episode_21['id'])
         self.assertEqual(by_number[21]['api_id'], episode_21['id'])
+        self.assertEqual(by_number[21]['stream'], 'https://vod.aryzap.com/test/episode-21/master.m3u8')
 
 if __name__ == "__main__":
     unittest.main()
