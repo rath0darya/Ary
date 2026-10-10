@@ -323,7 +323,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <script>
 const $=id=>document.getElementById(id);
-let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1;
+let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1,lastEpisodeRefreshAt=0;
 const categories=[["all","All"],["drama","Drama"],["telefilms","Telefilms"],["shows","Shows"],["movies","Movies"],["series","Series"],["comedy","Comedy"],["romance","Romance"],["action","Action"],["sports","Sports"],["news","News"]];
 
 async function get(path){const r=await fetch(path,{cache:"no-store",headers:{"Accept":"application/json"}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d}
@@ -365,7 +365,7 @@ async function loadEpisodes(force=false){
  else if(!episodes.length)$("episodeGrid").innerHTML='<div class="loading">Loading episode catalogue…</div>';
  try{
   const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id)+(force?"&refresh=1":""));
-  episodes=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);writeSessionCache(cacheKey,episodes);
+  episodes=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);writeSessionCache(cacheKey,episodes);lastEpisodeRefreshAt=Date.now();
   renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s");
   if(force)toast("Episode catalogue refreshed.");
  }catch(e){if(episodes.length){toast("Connection paused · showing saved episodes")}else $("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
@@ -532,7 +532,7 @@ function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");
 document.addEventListener("keydown",e=>{const modal=$("liveModal");if(e.key==="Escape"&&modal?.classList.contains("open"))closeLivePlayer()});const liveModal=$("liveModal");if(liveModal)liveModal.addEventListener("click",e=>{if(e.target===liveModal)closeLivePlayer()});
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("player").classList.contains("open"))closePlayer()});
-window.addEventListener("pagehide",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling()}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling()});
+window.addEventListener("pagehide",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)});setInterval(()=>{if(!document.hidden&&currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)},60000);
 bindPlayerControls();
 renderDownloadJobs();
 loadSeries();
