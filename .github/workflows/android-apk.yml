@@ -1,0 +1,47 @@
+name: Build standalone Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "ary_episode_watcher.py"
+      - "live_check.py"
+      - "web/**"
+      - "dar-e-nijaat-all-m3u8.json"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Package current Python backend and website
+        run: sh android/sync_sources.sh
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace -p android :app:assembleDebug
+      - name: Upload APK as a temporary build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ary-episode-watcher-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
