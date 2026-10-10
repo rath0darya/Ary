@@ -1083,6 +1083,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             int(item["number"]) for item in episodes
             if str(item.get("number", "")).isdigit()
         }
+        api_page_signatures: set[tuple[str, ...]] = set()
         for page_number in range(1, 101):
             try:
                 payload = api_json(
@@ -1097,7 +1098,13 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                 raw_page = [raw_page]
             if not isinstance(raw_page, list) or not raw_page:
                 break
-            page_added = 0
+            page_signature = tuple(
+                str(normalise_episode(raw).get("id") or "")
+                for raw in raw_page if isinstance(raw, dict)
+            )
+            if page_signature in api_page_signatures:
+                break
+            api_page_signatures.add(page_signature)
             for raw in raw_page:
                 if not isinstance(raw, dict):
                     continue
@@ -1139,10 +1146,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                 })
                 api_seen_ids.add(episode_id)
                 api_seen_numbers.add(episode_number)
-                page_added += 1
                 api_added += 1
-            if page_added == 0:
-                break
             has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
             total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
             if has_next is False or (total_pages and page_number >= int(total_pages)):
