@@ -155,9 +155,71 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 }
 @media(prefers-reduced-motion:reduce){.loading:before{animation:none}}
 
+ 
+/* Native-style transparent player overlay */
+#player .video-stage{inset:0;touch-action:manipulation}
+#player .video-stage video#video{width:100%;height:100%;object-fit:contain;background:#000;outline:none}
+#player .player-top{padding:calc(12px + env(safe-area-inset-top,0px)) clamp(10px,2vw,24px) 55px;background:linear-gradient(#000d,transparent);flex-wrap:nowrap}
+#player .player-top #playerNote{font-size:11px;color:#c8ceda;max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#player .player-top strong{font-size:14px;max-width:44vw}
+#player .player-bottom{top:auto;bottom:0;padding:60px clamp(12px,2.5vw,28px) calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,#000b 22%,#000e);z-index:22}
+#player .player-actions{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+#player .player-actions .spacer{flex:1}
+#player .pbtn{min-width:42px;height:42px;font-size:16px;background:#11151d82;border-color:#ffffff24;border-radius:14px;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+#player .pbtn:active,#player .center-btn:active{transform:scale(.94)}
+#player .time{min-width:92px;color:#fff;font-variant-numeric:tabular-nums;font-size:12px}
+#player .seek-wrap{position:relative;padding:0 0 8px}
+#player .seek{display:block;width:100%;height:24px;margin:0;accent-color:#f20d3a;cursor:pointer;touch-action:pan-y}
+#player .seek::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:linear-gradient(90deg,#f20d3a,var(--seek-progress,#f20d3a) 0%,#ffffff4a 0%)}
+#player .seek::-webkit-slider-thumb{margin-top:-6px}
+#player .player-info{margin-top:3px;font-size:10px;color:#c1c6d1;align-items:center}
+#player .center-controls{gap:clamp(18px,5vw,46px);top:50%;pointer-events:auto}
+#player .center-btn{width:58px;height:58px;font-size:20px;border-radius:50%;background:#07090bb3;border-color:#ffffff22;display:flex;align-items:center;justify-content:center;gap:2px}
+#player .center-btn small{font-size:9px}
+#player .center-btn.main{width:76px;height:76px;font-size:25px}
+#player .player-settings{position:absolute;z-index:35;right:clamp(10px,2vw,24px);bottom:calc(108px + env(safe-area-inset-bottom,0px));width:min(350px,calc(100vw - 20px));max-height:65dvh;overflow:auto;background:rgba(12,15,23,.82);border:1px solid #ffffff24;border-radius:22px;padding:16px;box-shadow:0 22px 80px #0009;backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);display:none}
+#player .player-settings.open{display:block}
+#player .settings-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+#player .settings-head strong{font-size:15px}
+#player .setline{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #ffffff12}
+#player .setline:last-child{border-bottom:0}
+#player .setline span{font-size:13px;color:#d1d6e0}
+#player .setline select{max-width:58%;background:#171b26;color:#fff;border:1px solid #ffffff24;border-radius:11px;padding:9px;font-size:13px}
+#player .setline button{height:auto;padding:9px 12px;font-size:12px}
+#player .lock-badge{z-index:45;top:auto;left:14px;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:none;border:1px solid #ffffff35;color:#fff;cursor:pointer;padding:13px 16px;box-shadow:0 8px 30px #0008}
+#player.locked .lock-badge{display:flex;align-items:center;justify-content:center}
+#player.locked .player-top,#player.locked .player-bottom,#player.locked .center-controls{opacity:0!important;pointer-events:none!important}
+#player.locked .lock-badge{pointer-events:auto!important;opacity:1!important}
+#player.hidden-ui .player-settings{display:none}
+#player.hidden-ui .player-top,#player.hidden-ui .player-bottom,#player.hidden-ui .center-controls{opacity:0;pointer-events:none}
+#player .seek-preview{position:absolute;display:none;z-index:40;bottom:calc(112px + env(safe-area-inset-bottom,0px));left:var(--preview-x,50%);transform:translateX(-50%);width:clamp(120px,24vw,190px);padding:4px;border:1px solid #ffffff42;border-radius:12px;background:#080a10eF;box-shadow:0 8px 28px #0008;pointer-events:none}
+#player .seek-preview.show{display:block}
+#player .seek-preview video{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;border-radius:8px;background:#000}
+#player .seek-preview span{display:block;text-align:center;font-size:11px;font-weight:800;padding:4px 0 2px;font-variant-numeric:tabular-nums}
+#player .gesture-hud{z-index:42;min-width:118px;padding:18px 20px;border-radius:20px;background:#090b10c9;border-color:#ffffff2e;backdrop-filter:blur(24px)}
+#player.landscape-fallback{position:fixed;top:50%;left:50%;right:auto;bottom:auto;width:100dvh;height:100vw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+#player.landscape-fallback .video-stage{width:100%;height:100%}
+#player:fullscreen{width:100vw;height:100dvh}
+@media(max-width:600px){
+ #player .player-top{gap:6px;padding-left:8px;padding-right:8px}
+ #player .player-top strong{font-size:12px;max-width:42vw}
+ #player .player-top #playerNote{display:none}
+ #player .player-top .pbtn{min-width:38px;width:38px;height:38px;padding:0}
+ #player .player-bottom{padding-left:9px;padding-right:9px}
+ #player .player-actions{gap:5px}
+ #player .player-actions .pbtn{min-width:36px;width:36px;height:38px;font-size:14px}
+ #player .time{min-width:80px;font-size:11px}
+ #player .center-btn{width:50px;height:50px}
+ #player .center-btn.main{width:66px;height:66px}
+ #player .player-info{font-size:9px}
+ #player .player-settings{bottom:calc(100px + env(safe-area-inset-bottom,0px));right:8px;width:calc(100vw - 16px)}
+ #player .seek-preview{bottom:calc(106px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:370px){#player .player-actions .pbtn:nth-of-type(2),#player .player-actions .pbtn:nth-of-type(3){display:none}}
+
 </style>
 
-<style>#player .video-stage{inset:0;background:#000}#player .video-stage video{width:100%;height:100%;object-fit:contain}#player .player-top{z-index:22;gap:10px;flex-wrap:wrap}#player .player-top #playerNote{font-size:12px;color:#d2d6df}#player .player-bottom{z-index:22;pointer-events:auto;bottom:auto;top:calc(78px + env(safe-area-inset-top,0px));padding:8px 14px;background:rgba(0,0,0,.58)}.ep-actions{grid-template-columns:repeat(3,minmax(0,1fr))}#player #quality{background:#11151d;color:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:8px;max-width:45vw}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
+<style>.ep-actions{grid-template-columns:repeat(3,minmax(0,1fr))}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
 </head>
 <body>
 <header class="top">
@@ -226,19 +288,45 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
  <div class="detail-body"><div class="section-head"><h2 class="title">Episodes / Video</h2><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span id="episodeCount" class="count"></span><button class="btn" type="button" onclick="loadEpisodes(true)">↻ Find newer entries</button></div></div><input id="episodeSearch" class="search" style="width:100%;max-width:500px;background:#ffffff08" placeholder="Search episodes…" oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading…</div></div></div>
 </section>
 
-<section id="player" class="player" aria-label="Video playback">
- <div class="video-stage"><video id="video" playsinline controls preload="metadata"></video></div>
- <div class="player-top">
+<section id="player" class="player" aria-label="Video player" aria-modal="true" role="dialog">
+ <div class="video-stage" id="videoStage">
+  <video id="video" playsinline webkit-playsinline preload="metadata"></video>
+  <div class="seek-preview" id="seekPreview"><video id="previewVideo" muted playsinline preload="metadata"></video><span id="previewTime">00:00</span></div>
+  <div class="gesture-hud" id="gestureHud" aria-live="polite">+10 seconds</div>
+ </div>
+ <header class="player-top">
+  <button class="pbtn player-control" id="lockBtn" onclick="togglePlayerLock()" aria-label="Lock player controls" title="Lock controls">🔒</button>
   <strong id="playerTitle">Episode</strong><span class="spacer"></span>
   <span id="playerNote" role="status">Preparing stream…</span>
-  <button class="pbtn" onclick="downloadCurrent()">↓ Download</button>
-  <button class="pbtn" onclick="closePlayer()" aria-label="Close video">× Close</button>
+  <button class="pbtn player-control" onclick="downloadCurrent()" aria-label="Download episode" title="Download">↓</button>
+  <button class="pbtn player-control" onclick="closePlayer()" aria-label="Close player" title="Close">×</button>
+ </header>
+ <div class="center-controls player-control" id="centerControls">
+  <button class="center-btn" onclick="seekBy(-10)" aria-label="Back 10 seconds">↶<small>10</small></button>
+  <button class="center-btn main" id="centerPlay" onclick="togglePlayback()" aria-label="Play or pause">▶</button>
+  <button class="center-btn" onclick="seekBy(10)" aria-label="Forward 10 seconds">↷<small>10</small></button>
  </div>
- <div class="player-bottom" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-  <label for="quality">Playlist quality</label>
-  <select id="quality" onchange="changeQuality()" aria-label="Playlist quality"><option value="-1">Auto / source</option></select>
-  <span id="captionStatus" hidden>Captions unavailable</span>
+ <div class="player-bottom player-control" id="playerBottom">
+  <div class="seek-wrap">
+   <input id="seekBar" class="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek video timeline">
+  </div>
+  <div class="player-actions">
+   <span class="time" id="timeLabel">00:00 / --:--</span><span class="spacer"></span>
+   <button class="pbtn" onclick="seekBy(-10)" aria-label="Back 10 seconds">↶10</button>
+   <button class="pbtn" onclick="seekBy(10)" aria-label="Forward 10 seconds">10↷</button>
+   <button class="pbtn" onclick="togglePlayerSettings()" aria-label="Player settings" title="Settings">⚙</button>
+   <button class="pbtn" onclick="toggleFullscreen()" aria-label="Fullscreen" title="Fullscreen">⛶</button>
+  </div>
+  <div class="player-info"><span id="playerHint">Double-tap left/right to skip 10 seconds</span><span id="bufferLabel">Ready</span></div>
  </div>
+ <button id="lockBadge" class="lock-badge" onclick="togglePlayerLock()" aria-label="Unlock player controls" title="Unlock controls">🔒</button>
+ <aside class="player-settings" id="settings" aria-label="Playback settings">
+  <div class="settings-head"><strong>Playback settings</strong><button class="pbtn" onclick="togglePlayerSettings(false)" aria-label="Close settings">×</button></div>
+  <label class="setline"><span>Quality</span><select id="quality" onchange="changeQuality()" aria-label="Stream quality"><option value="-1">Auto / source</option></select></label>
+  <label class="setline"><span>Playback speed</span><select id="playbackSpeed" onchange="setPlaybackSpeed(this.value)"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1× Normal</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select></label>
+  <div class="setline"><span>Screen orientation</span><button class="pbtn" onclick="toggleOrientation()" id="orientationBtn">↻ Landscape</button></div>
+  <div class="setline"><span>Display</span><button class="pbtn" onclick="toggleFullscreen()">⛶ Fullscreen</button></div>
+ </aside>
 </section>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <button id="downloadMini" class="download-mini" onclick="toggleDownloadCenter()">↓ Downloads <span id="downloadBadge">0</span></button>
