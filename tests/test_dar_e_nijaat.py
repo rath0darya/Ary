@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 from ary_episode_watcher import APP_DIR, catalogue
 
@@ -19,7 +20,10 @@ class DarENijaatCatalogueTests(unittest.TestCase):
 
     def test_backend_catalogue_uses_canonical_ids_and_streams(self):
         source = json.loads((APP_DIR / "dar-e-nijaat-all-m3u8.json").read_text(encoding="utf-8"))
-        episodes = catalogue("dar-e-nijaat", force=True)
+        # Keep this unit test offline and deterministic; live discovery is
+        # covered by the backend's runtime refresh path.
+        with patch("ary_episode_watcher.http_text", return_value="<html></html>"):
+            episodes = catalogue("dar-e-nijaat", force=True)
         # The live catalogue may contain episodes newer than the 20-entry
         # verified baseline. Every baseline entry must remain present.
         self.assertGreaterEqual(len(episodes), 20)
