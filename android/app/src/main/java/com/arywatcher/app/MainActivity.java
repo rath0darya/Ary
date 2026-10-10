@@ -3,6 +3,7 @@ package com.arywatcher.app;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.app.PictureInPictureParams;
+import android.content.res.Configuration;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
@@ -28,6 +29,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -59,6 +65,12 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private volatile boolean appFullscreen = false;
     private volatile boolean pipAutoEnter = false;
+    private volatile String pipStreamUrl = "";
+    private volatile long pipPositionMs = 0L;
+    private volatile boolean pipWasPlaying = false;
+    private ExoPlayer pipPlayer;
+    private PlayerView pipPlayerView;
+    private boolean nativePipViewActive = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -197,7 +209,8 @@ public class MainActivity extends Activity {
         try {
             PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
                 .setAspectRatio(new Rational(16, 9));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(autoEnter);
+            // Keep automatic entry callback-driven so the native video surface is installed before PiP snapshots the activity.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(false);
             setPictureInPictureParams(builder.build());
         } catch (Exception error) {
             android.util.Log.w("CineWave", "Could not update PiP parameters", error);
@@ -213,42 +226,125 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Picture-in-picture is not supported on this device.", Toast.LENGTH_LONG).show();
             return;
         }
-        try {
-            updatePipParams(false);
-            enterPictureInPictureMode(new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build());
-        } catch (Exception error) {
-            android.util.Log.e("CineWave", "Could not enter picture-in-picture", error);
-            Toast.makeText(this, "Could not start picture-in-picture. Check Android app settings.", Toast.LENGTH_LONG).show();
+        if (pipStreamUrl == null || pipStreamUrl.trim().isEmpty() || pipStreamUrl.startsWith("blob:")) {
+            Toast.makeText(this, "Wait for the video to start, then try picture-in-picture again.", Toast.LENGTH_SHORT).show();
+            return;
         }
+        try {
+            final String source = pipStreamUrl;
+            final long position = Math.max(0L, pipPositionMs);
+            final boolean resumePlayback = pipWasPlaying;
+            if (webView != null) webView.evaluateJavascript(
+                "(function(){var v=document.getElementById('video');if(v){v.pause();}})()", null);
+            if (pipPlayer != null) {
+                pipPlayer.release();
+                pipPlayer = null;
+            }
+            pipPlayer = new ExoPlayer.Builder(this).build();
+            pipPlayerView = new PlayerView(this);
+            pipPlayerView.setUseController(false);
+            pipPlayerView.setPlayer(pipPlayer);
+            pipPlayerView.setBackgroundColor(0xFF000000);
+            pipPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(source)));
+            pipPlayer.seekTo(position);
+            pipPlayer.setPlayWhenReady(resumePlayback);
+            pipPlayer.prepare();
+
+            if (webView.getParent() == root) root.removeView(webView);
+            if (pipPlayerView.getParent() == null) root.addView(pipPlayerView, new FrameLayout.LayoutParams(-1, -1));
+            nativePipViewActive = true;
+            appFullscreen = true;
+            updatePipParams(false);
+            PictureInPictureParams.Builder params = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(16, 9));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && webView != null) {
+                int[] location = new int[2];
+                webView.getLocationOnScreen(location);
+                android.graphics.Rect rect = new android.graphics.Rect(location[0], location[1],
+                    location[0] + webView.getWidth(), location[1] + webView.getHeight());
+                if (rect.width() > 0 && rect.height() > 0) params.setSourceRectHint(rect);
+            }
+            boolean entered = enterPictureInPictureMode(params.build());
+            if (!entered) restoreWebViewFromPip();
+        } catch (Exception error) {
+            android.util.Log.e("CineWave", "Could not start native PiP video", error);
+            restoreWebViewFromPip();
+            Toast.makeText(this, "Could not start picture-in-picture video.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void restoreWebViewFromPip() {
+        long position = pipPlayer != null ? Math.max(0L, pipPlayer.getCurrentPosition()) : pipPositionMs;
+        boolean resume = pipPlayer != null && pipPlayer.getPlayWhenReady();
+        if (pipPlayerView != null && pipPlayerView.getParent() == root) root.removeView(pipPlayerView);
+        if (pipPlayer != null) {
+            pipPlayer.release();
+            pipPlayer = null;
+        }
+        pipPlayerView = null;
+        nativePipViewActive = false;
+        if (webView != null && webView.getParent() == null) root.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+        if (webView != null) {
+            String script = "(function(){var v=document.getElementById('video');if(!v)return;" +
+                "try{v.currentTime=" + (position / 1000.0) + ";}catch(e){}" +
+                (resume ? "v.play().catch(function(){});" : "") +
+                "document.getElementById('player')?.classList.remove('pip-mode');})()";
+            webView.evaluateJavascript(script, null);
+        }
+        pipPositionMs = position;
+        pipWasPlaying = resume;
+        appFullscreen = false;
+        if (root != null) ViewCompat.requestApplyInsets(root);
     }
 
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && pipAutoEnter) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                && pipAutoEnter && pipWasPlaying) {
             enterPipMode();
         }
     }
 
     @Override
-    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, android.content.res.Configuration newConfig) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
-        if (webView != null) {
-            String script = "document.getElementById('player')?.classList." +
-                (isInPictureInPictureMode ? "add" : "remove") + "('pip-mode')";
-            webView.evaluateJavascript(script, null);
+    public boolean onPictureInPictureRequested() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && pipAutoEnter && pipWasPlaying
+                && pipStreamUrl != null && !pipStreamUrl.isEmpty()) {
+            enterPipMode();
+            return true;
         }
+        return super.onPictureInPictureRequested();
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
         if (isInPictureInPictureMode) {
             appFullscreen = true;
+            if (webView != null) webView.evaluateJavascript(
+                "document.getElementById('player')?.classList.add('pip-mode')", null);
         } else {
-            appFullscreen = false;
-            if (root != null) ViewCompat.requestApplyInsets(root);
+            if (nativePipViewActive) restoreWebViewFromPip();
+            else {
+                appFullscreen = false;
+                if (root != null) ViewCompat.requestApplyInsets(root);
+                if (webView != null) webView.evaluateJavascript(
+                    "document.getElementById('player')?.classList.remove('pip-mode')", null);
+            }
         }
     }
 
     private final class AndroidBridge {
-        @JavascriptInterface public void enterPictureInPicture() {
+        @JavascriptInterface public void enterPictureInPicture(String url, double positionSeconds, boolean playing) {
+            pipStreamUrl = url == null ? "" : url;
+            pipPositionMs = Math.max(0L, (long) (positionSeconds * 1000));
+            pipWasPlaying = playing;
             runOnUiThread(() -> enterPipMode());
+        }
+        @JavascriptInterface public void updatePipPlayback(String url, double positionSeconds, boolean playing) {
+            if (url != null && !url.trim().isEmpty() && !url.startsWith("blob:")) pipStreamUrl = url;
+            pipPositionMs = Math.max(0L, (long) (positionSeconds * 1000));
+            pipWasPlaying = playing;
         }
         @JavascriptInterface public void setPipAutoEnter(boolean enabled) {
             pipAutoEnter = enabled;
@@ -347,6 +443,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (pipPlayer != null) {
+            pipPlayer.release();
+            pipPlayer = null;
+        }
         if (webView != null) {
             webView.stopLoading();
             webView.destroy();
