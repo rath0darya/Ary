@@ -127,7 +127,7 @@ Open http://127.0.0.1:8787 in the browser. The command supports `aryweb --status
 
 The repository includes a standalone **CineWave** Android app project under `android/`. It bundles the CineWave interface and Python backend into the APK and runs the backend locally inside the app. The app uses an embedded Python runtime and a native Android FFmpegKit dependency for supported downloads.
 
-To build without a PC, open the repository's **Actions** tab, choose **Build CineWave Android APK**, and select **Run workflow**. Download the `cinewave-android-apk` artifact from the completed run, extract it, and install `app-debug.apk`. The workflow artifact is temporary (7 days); no permanent APK release or hosting page is created.
+To build without a PC, open the repository's **Actions** tab, choose **Build CineWave Android APK**, and select **Run workflow**. Download the `cinewave-android-apk` artifact from the completed run, extract it, and install `app-debug.apk`. Uninstall an earlier debug APK first if Android rejects the update, since each workflow build uses a temporary signing key. The workflow artifact is temporary (7 days); no permanent APK release or hosting page is created.
 
 The APK still needs internet for online catalogue and media sources. Its cache and working downloads are app-private; downloaded files can be exported to Android Downloads from the app. Android 7.0 or newer and a 64-bit ARM device (arm64-v8a) are supported by this build configuration.
 
