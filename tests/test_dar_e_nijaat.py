@@ -20,7 +20,9 @@ class DarENijaatCatalogueTests(unittest.TestCase):
     def test_backend_catalogue_uses_canonical_ids_and_streams(self):
         source = json.loads((APP_DIR / "dar-e-nijaat-all-m3u8.json").read_text(encoding="utf-8"))
         episodes = catalogue("dar-e-nijaat", force=True)
-        self.assertEqual(len(episodes), 20)
+        # The live catalogue may contain episodes newer than the 20-entry
+        # verified baseline. Every baseline entry must remain present.
+        self.assertGreaterEqual(len(episodes), 20)
         by_number = {item["number"]: item for item in episodes}
         for item in source["episodes"]:
             with self.subTest(episode=item["episode"]):
