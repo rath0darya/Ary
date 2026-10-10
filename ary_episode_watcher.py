@@ -140,9 +140,9 @@ def image_response(handler: BaseHTTPRequestHandler, target_url: str):
             content_type = response.headers.get("Content-Type", "application/octet-stream")
             data = response.read(12 * 1024 * 1024 + 1)
             if not content_type.lower().startswith("image/"):
-                if data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+                if data.startswith(b"\x89PNG\r\n\x1a\n"):
                     content_type = "image/png"
-                elif data.startswith(b"\\xff\\xd8\\xff"):
+                elif data.startswith(b"\xff\xd8\xff"):
                     content_type = "image/jpeg"
                 elif data.startswith((b"GIF87a", b"GIF89a")):
                     content_type = "image/gif"
