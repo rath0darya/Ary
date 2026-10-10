@@ -1,0 +1,126 @@
+{
+  "seriesId": "6a57868b5bf57c474cc00a50",
+  "series": "Dar-E-Nijaat",
+  "episodes": [
+    {
+      "episode": 1,
+      "id": "6a6e0b1e9bc4b079859bc14b",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/4d7f21815001834813456382537/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 2,
+      "id": "6a75fcc346c9625e3fb8296d",
+      "m3u8": "https://vod.aryzap.com/c9b8f8d2vodtransth1313565080/416f93585001834814741326280/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 3,
+      "id": "6a774b1046c9625e3fbcaf6d",
+      "m3u8": "https://vod.aryzap.com/cd6a659fvodtransjkt1313565080/58e21a7a5001834813456845031/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 4,
+      "id": "6a7f216446c9625e3f392dbe",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/be84028a5001834815875854247/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 5,
+      "id": "6a807db546c9625e3f46dca5",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/182e3ab65001834815910148052/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 6,
+      "id": "6a886a83c0a7971117868526",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/6b776de45001834816629641285/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 7,
+      "id": "6a89bcc6c0a797111795ce0a",
+      "m3u8": "https://vod.aryzap.com/cd6a659fvodtransjkt1313565080/f5df067d5001834816621075078/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 8,
+      "id": "6a91aa81c0a79711171fc1b8",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/a443474a5001834817980774328/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 9,
+      "id": "6a92ff05c0a797111731b5b2",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/24886d765001834818041427090/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 10,
+      "id": "6a9ac8b715407ce7c63606bb",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/c07a3e225001834818851944710/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 11,
+      "id": "6a9c2b213bb6f06f6a22685b",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/e0c824005001834818848303443/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 12,
+      "id": "6aa3fe61db2e05fc15c3f98a",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/ea5a74475001834819855330379/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 13,
+      "id": "6aa569699ce8620de08e66f1",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/a016e8fd5001834820048274880/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 14,
+      "id": "6aad5c681f5a2d4920d6297a",
+      "m3u8": "https://vod.aryzap.com/cd6a659fvodtransjkt1313565080/8720aa9a5001834820509471660/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 15,
+      "id": "6aaeb19765a92de0f19da7e4",
+      "m3u8": "https://vod.aryzap.com/c9b8f8d2vodtransth1313565080/3d03f3d85001834820515358135/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 16,
+      "id": "6ab6818de2d45a788e51d21a",
+      "m3u8": "https://vod.aryzap.com/c9b8f8d2vodtransth1313565080/534a79c55001834820546539845/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 17,
+      "id": "6ab7e0e876025242013a106e",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/c48706b65001834820582006229/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 18,
+      "id": "6abfb83d292394265381f466",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/24a09ac65001834821488153497/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 19,
+      "id": "6ac110a0b5da0c5ef220353a",
+      "m3u8": "https://vod.aryzap.com/0e66b809vodtranshk1313565080/905583255001834820509859742/adp.10.m3u8",
+      "ok": true
+    },
+    {
+      "episode": 20,
+      "id": "6ac8f29206ed0d6db5611bff",
+      "m3u8": "https://vod.aryzap.com/be8170a0vodtranssgp1313565080/b71c00a85001834820510108320/adp.10.m3u8",
+      "ok": true
+    }
+  ]
+}
