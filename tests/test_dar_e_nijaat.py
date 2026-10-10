@@ -46,9 +46,16 @@ class DarENijaatCatalogueTests(unittest.TestCase):
             'videoEpNumber': 21,
             'videoTitle': 'Dar-E-Nijaat Episode 21',
         }
+        episode_20 = {
+            'id': '6ac8f29206ed0d6db5611bff',
+            'videoEpNumber': 20,
+            'videoTitle': 'Dar-E-Nijaat Episode 20',
+        }
         def api_response(path, timeout=20):
             if '/api/v2/cdn/pg/' in path and 'page=1' in path:
-                return {'episode': [episode_21], 'hasNextPage': False, 'totalPages': 1}
+                return {'episode': [episode_20], 'hasNextPage': True, 'totalPages': 2}
+            if '/api/v2/cdn/pg/' in path and 'page=2' in path:
+                return {'episode': [episode_21], 'hasNextPage': False, 'totalPages': 2}
             return {'episode': [], 'hasNextPage': False}
         with patch('ary_episode_watcher.api_json', side_effect=api_response), patch(
             'ary_episode_watcher.http_text', return_value='<html></html>'
