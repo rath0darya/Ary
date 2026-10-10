@@ -333,7 +333,8 @@ def _looks_like_episode(item: dict[str, Any]) -> bool:
     keys = {str(k).lower() for k in item}
     return bool(keys & {
         "videoepnumber", "episodenumber", "episode_number", "episodeid",
-        "episode_id", "nextepid", "videosource", "video_source",
+        "episode_id", "videoid", "video_id", "videoepid", "nextepid",
+        "videosource", "video_source",
         "episodetitle", "videotitle", "videotitle", "videotitletext", "seasonnumber",
         "episodeno", "episodenumber", "videonumber", "videopageno", "epno",
         "videourl", "video_url", "streamurl", "stream_url",
