@@ -442,7 +442,7 @@ async function playEpisode(e,pos=0,selectedSource=null){
  if(currentEpisode){const previous=$("video");saveWatch(currentEpisode,previous.currentTime||0,false);previous.onpause=null}currentEpisode=e;currentIndex=episodes.findIndex(x=>String(x.id)===String(e.id));
  const p=$("player");p.classList.add("open");p.classList.remove("locked","hidden-ui","landscape-fallback");locked=false;orientationFallback=false;landscapeMode=false;document.body.style.overflow="hidden";$("settings").classList.remove("open");
  $("playerTitle").textContent=(currentSeries?.title||"Video")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+(e.title||"Video");
- $("playerNote").textContent="Finding available playlist…";destroyPlayer();$("playbackSpeed").value="1";
+ $("playerNote").textContent="Finding available playlist…";destroyPlayer();
  try{
   const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
   variants=(d.stream?.variants||[]).filter(x=>x?.uri);
@@ -478,7 +478,7 @@ function bindPlayerControls(){
  bar.addEventListener("pointerleave",()=>{if(!seekingTimeline)hideSeekPreview()});
  stage.addEventListener("pointerup",e=>{if(locked)return;if(e.target.closest("button,.seek-preview"))return;const now=Date.now(),rect=stage.getBoundingClientRect(),x=e.clientX-rect.left,side=x<rect.width*.36?"left":x>rect.width*.64?"right":"center";if(stageTapTimer&&now-lastStageTap.time<330&&side===lastStageTap.side){clearTimeout(stageTapTimer);stageTapTimer=0;if(side==="left")seekBy(-10);else if(side==="right")seekBy(10);else togglePlayback();lastStageTap={time:0,side:null};return}clearTimeout(stageTapTimer);lastStageTap={time:now,side};stageTapTimer=setTimeout(()=>{stageTapTimer=0;if(locked)return;if(side==="center"){if($("player").classList.contains("hidden-ui"))showPlayerControls();else if($("video").paused)togglePlayback();else showPlayerControls()}else showPlayerControls()},330)});
  $("player").addEventListener("pointermove",()=>{if(!locked)showPlayerControls()});
- document.addEventListener("fullscreenchange",()=>{if(document.fullscreenElement){$("player").classList.remove("landscape-fallback");orientationFallback=false}});
+ document.addEventListener("fullscreenchange",()=>{if(document.fullscreenElement){$("player").classList.remove("landscape-fallback");orientationFallback=false}else if(landscapeMode&&!orientationFallback){try{screen.orientation?.unlock?.()}catch{}landscapeMode=false;$("orientationBtn").textContent="↻ Landscape"}});
 }
 function downloadCurrent(){if(currentEpisode)downloadEpisode(currentEpisode.id)}
 const DOWNLOAD_JOBS_KEY="ary-download-jobs-v1";const downloadJobs=new Map((()=>{try{return JSON.parse(localStorage.getItem(DOWNLOAD_JOBS_KEY)||"[]")}catch{return []}})().filter(j=>j&&j.id).map(j=>[j.id,j]));let notificationRegistration=null;if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").then(reg=>{notificationRegistration=reg}).catch(()=>{});}
