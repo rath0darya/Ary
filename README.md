@@ -11,7 +11,7 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 - Downloads with FFmpeg stream copy; no quality-lowering re-encode.
 - Verifies the resulting MP4 with ffprobe.
 - Background download jobs with progress/status API.
-- Netflix/Prime-style home catalogue with All, Drama, Telefilms, Shows, Movies, Comedy, Romance, Action, Sports, News and metadata-driven genre rows.
+- OTT-style cinematic home page with a featured hero, horizontal poster rails, mobile-first layouts, and category/genre filters.
 - Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
 - Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
 - Episode cards provide prominent in-app Stream and Download buttons; playlist/quality inspection is a secondary action.
@@ -20,7 +20,8 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 - Manual ARY Digital Live availability check from the website interface whenever you choose.
 - No external AI/API service.
 - API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
-- Designed for Android/Termux.
+- Browser catalogue and episode state is cached for the current tab so returning from another app can reuse saved data instead of flashing an empty loading screen. Hiding the tab saves playback position without incorrectly marking the episode as finished.
+- Designed for Android/Termux, with optional Termux wake-lock support and a background server mode.
 
 Use the downloader only for media you are authorized to download. The live check is manual only: it does not schedule checks, run in the background, or record/archive the live broadcast.
 
@@ -123,8 +124,8 @@ Then use:
 
     arymenu
 
-Choose **Start web interface in background**, then select **Open web interface in browser**. You can also start it directly with:
+Or start the WebUI directly in the background:
 
     aryweb
 
-Open http://127.0.0.1:8787 in the browser. The menu also provides server health, catalogue refresh, a download-folder listing, and the local web address. The menu uses only Python's standard library and adapts to narrow terminal widths.
+Open http://127.0.0.1:8787 in the browser. The command supports `aryweb --status`, `aryweb --logs`, `aryweb --restart`, `aryweb --stop`, and `aryweb --foreground`. When the Termux:API command `termux-wake-lock` is installed, the launcher requests a wake lock to reduce CPU suspension while the server runs in the background. Android battery restrictions, force-stop, or OEM process killing can still stop a local server; disable battery optimization for Termux if background reliability matters. The menu also provides server health, catalogue refresh, a download-folder listing, and the local web address.
