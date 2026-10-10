@@ -7,3 +7,4 @@ downloads/
 output/
 .pytest_cache/
 .ary-episode-watcher/
+cleanup-backup-*/
