@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07080d">
 <meta name="color-scheme" content="dark">
-<title>Dar-E-Nijaat | Official Episode Watcher</title>
+<title>CineWave | Streaming</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3"></script>
 <style>
 :root{
@@ -223,7 +223,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 </head>
 <body>
 <header class="top">
-  <div class="logo">DAR<b>•</b>NIJAAT</div>
+  <div class="logo">CINE<b>•</b>WAVE</div>
   <nav class="nav">
     <button onclick="scrollHome()">Home</button>
     <button onclick="setCategory('series')">Series</button>
@@ -239,10 +239,10 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <section id="hero" class="hero">
  <div class="hero-copy">
-  <div class="eyebrow">OFFICIAL EPISODE GUIDE</div>
+  <div class="eyebrow">YOUR STREAMING COLLECTION</div>
   <h1 id="heroTitle">Dar-E-Nijaat</h1>
   <div id="heroMeta" class="facts"></div>
-  <p id="heroDesc" class="hero-desc">Explore Dar-E-Nijaat episodes and open each episode on the official ARY Digital website.</p>
+  <p id="heroDesc" class="hero-desc">Discover titles, browse episodes and stream in one place.</p>
   <div class="hero-actions"><button class="btn primary" onclick="heroPlay()">▶ Episode guide</button><button class="btn" onclick="document.getElementById('browse').scrollIntoView({behavior:'smooth'})">Episode list</button></div>
  </div>
 </section>
@@ -265,7 +265,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 <section id="continueSection" class="section continue" style="display:none"><div class="section-head"><h2 class="title">Continue Watching</h2></div><div id="continueRow" class="content-row"></div></section>
 <section class="section"><div class="section-head"><h2 class="title">Featured Picks</h2><span id="recentCount" class="count"></span></div><div id="recentRow" class="content-row"><div class="loading">Loading…</div></div></section>
 <section id="browse" class="section">
- <div class="section-head"><h2 class="title">Browse ARY+</h2><span id="catalogueCount" class="count"></span></div>
+ <div class="section-head"><h2 class="title">Browse all titles</h2><span id="catalogueCount" class="count"></span></div>
  <div id="chips" class="chips"></div>
  <div class="tools">
   <div class="filters">
@@ -284,7 +284,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <section id="detail" class="detail">
  <button class="close" onclick="closeDetail()">×</button>
- <div id="detailHero" class="detail-hero"><div class="detail-copy"><div id="detailType" class="eyebrow"></div><h2 id="detailTitle"></h2><div id="detailFacts" class="facts"></div><p id="detailDesc" class="desc"></p><div id="detailCast" class="cast"></div><div class="hero-actions"><button id="detailPlay" class="btn primary">▶ Play</button><a id="official" class="btn" target="_blank" rel="noopener">Open ARY+ ↗</a></div></div></div>
+ <div id="detailHero" class="detail-hero"><div class="detail-copy"><div id="detailType" class="eyebrow"></div><h2 id="detailTitle"></h2><div id="detailFacts" class="facts"></div><p id="detailDesc" class="desc"></p><div id="detailCast" class="cast"></div><div class="hero-actions"><button id="detailPlay" class="btn primary">▶ Play</button></div></div></div>
  <div class="detail-body"><div class="section-head"><h2 class="title">Episodes / Video</h2><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span id="episodeCount" class="count"></span><button class="btn" type="button" onclick="loadEpisodes(true)">↻ Find newer entries</button></div></div><input id="episodeSearch" class="search" style="width:100%;max-width:500px;background:#ffffff08" placeholder="Search episodes…" oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading…</div></div></div>
 </section>
 
@@ -354,6 +354,8 @@ function readSessionCache(key){try{const x=JSON.parse(sessionStorage.getItem(key
 function writeSessionCache(key,data){try{sessionStorage.setItem(key,JSON.stringify({savedAt:Date.now(),data}))}catch{}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function imageUrl(u){return u?"/api/image?url="+encodeURIComponent(u):""}
+function setBackdrop(el,url){if(!el)return;if(!url){el.style.backgroundImage="";return}const proxied=imageUrl(url);el.style.backgroundImage='url("'+proxied+'")';const probe=new Image();probe.onerror=()=>{el.style.backgroundImage='url("'+String(url).replaceAll("\\","%5C").replaceAll('"',"%22")+'")'};probe.src=proxied}
+document.addEventListener("error",event=>{const img=event.target;if(!(img instanceof HTMLImageElement))return;if(img.dataset.original&&!img.dataset.fallback){img.dataset.fallback="1";img.src=img.dataset.original;return}if(img.dataset.fallback)img.style.visibility="hidden"},true);
 function typeOf(x){return x?.content_type||x?.contentType||"Series"}
 function genresOf(x){const g=x?.genres||x?.catalogue_genres||[];return Array.isArray(g)?g.filter(Boolean).map(String):String(g||"").split(/[,|•]/).map(x=>x.trim()).filter(Boolean)}
 function yearOf(x){return x?.year||x?.release_year||x?.releaseYear||""}
@@ -368,7 +370,7 @@ function clearFilters(){$("catalogueSearch").value="";$("search").value="";$("ye
 function scrollHome(){scrollTo({top:0,behavior:"smooth"})}
 async function loadSeries(refresh=false){const cached=readSessionCache(SERIES_CACHE_KEY);if(!refresh&&!series.length&&Array.isArray(cached)){series=cached;buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0]);$("catalogueCount").textContent=series.length+" titles · saved";}try{const d=await get("/api/series"+(refresh?"?refresh=1":""));series=Array.isArray(d.series)?d.series:[];writeSessionCache(SERIES_CACHE_KEY,series);buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0])}catch(e){if(series.length){toast("Connection paused · showing saved catalogue")}else $("rows").innerHTML='<div class="empty">Catalogue unavailable: '+esc(e.message)+'</div>'}}
 async function refreshCatalogue(){await loadSeries(true);toast("Catalogue refreshed")}
-function setHero(x){$("heroTitle").textContent=x.title||"Discover ARY+";$("heroMeta").innerHTML='<span class="pill">'+esc(typeOf(x))+'</span>'+(yearOf(x)?'<span class="pill">'+esc(yearOf(x))+'</span>':'')+genresOf(x).slice(0,3).map(g=>'<span class="pill">'+esc(g)+'</span>').join("");$("heroDesc").textContent=x.description||"Browse the local ARY+ catalogue, choose a title and play available episodes or direct videos.";if(poster(x))$("hero").style.backgroundImage="url('"+imageUrl(poster(x))+"')"}
+function setHero(x){$("heroTitle").textContent=x.title||"Discover titles";$("heroMeta").innerHTML='<span class="pill">'+esc(typeOf(x))+'</span>'+(yearOf(x)?'<span class="pill">'+esc(yearOf(x))+'</span>':'')+genresOf(x).slice(0,3).map(g=>'<span class="pill">'+esc(g)+'</span>').join("");$("heroDesc").textContent=x.description||"Browse the collection, choose a title and play available episodes or direct videos.";setBackdrop($("hero"),poster(x))}
 function renderRecent(){const items=series.slice(0,24);$("recentCount").textContent=items.length+" titles";$("recentRow").innerHTML=items.length?items.map(card).join(""):'<div class="empty">No catalogue yet.</div>'}
 function watchKey(id){return"ary-watch:"+id}
 function watchState(id){try{return JSON.parse(localStorage.getItem(watchKey(id))||"null")}catch{return null}}
@@ -376,7 +378,7 @@ function saveWatch(e,pos,ended=false){if(!e||!isFinite(pos))return;const duratio
 function renderContinue(){const all=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith("ary-watch:")){try{const v=JSON.parse(localStorage.getItem(k));if(v&&!v.ended&&v.progress>1)all.push(v)}catch{}}}all.sort((a,b)=>b.updated-a.updated);$("continueSection").style.display=all.length?"block":"none";$("continueRow").innerHTML=all.slice(0,12).map(v=>'<button class="card continue-card" data-watch-id="'+esc(v.id)+'"><div class="poster" style="height:158px">'+(v.poster?'<img loading="lazy" src="'+imageUrl(v.poster)+'">':'')+'<span class="progress"><i style="width:'+Math.min(100,v.progress)+'%"></i></span></div><div class="card-name">'+esc(v.seriesTitle||v.title)+'</div><div class="card-meta">Continue · '+v.progress+'%</div></button>').join("")}
 async function resumeWatch(v){await openSeries(v.seriesId);if(v.id){const e=episodes.find(x=>x.id===v.id)||episodes.find(x=>Number(x.number)===Number(v.number));if(e)playEpisode(e,v.position||0)}}
 
-async function openSeries(id){try{$("detail").classList.add("open");document.body.style.overflow="hidden";const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;setHero(currentSeries);$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=currentSeries.description||"";$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";$("official").href=currentSeries.url||("https://aryplus.tv/title/"+id);$("detailHero").style.backgroundImage=poster(currentSeries)?"url('"+imageUrl(poster(currentSeries))+"')":"";$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
+async function openSeries(id){try{$("detail").classList.add("open");document.body.style.overflow="hidden";const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;setHero(currentSeries);$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=currentSeries.description||"";$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";setBackdrop($("detailHero"),poster(currentSeries));$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
 async function loadEpisodes(force=false){
  if(!currentSeries)return;
  const cacheKey="ary-episodes:"+currentSeries.id;const cached=readSessionCache(cacheKey);
@@ -397,7 +399,7 @@ function renderEpisodes(){
  for(const e of list){
   const card=document.createElement("article");card.className="ep";
   const thumb=document.createElement("div");thumb.className="ep-thumb";
-  if(e.thumbnail){const img=document.createElement("img");img.loading="lazy";img.src=imageUrl(e.thumbnail);img.alt="";thumb.appendChild(img)}
+  if(e.thumbnail){const img=document.createElement("img");img.loading="lazy";img.dataset.original=e.thumbnail;img.src=imageUrl(e.thumbnail);img.alt="";thumb.appendChild(img)}
   const num=document.createElement("span");num.className="ep-num";num.textContent=e.number??"Video";thumb.appendChild(num);
   const body=document.createElement("div");body.className="ep-body";
   const title=document.createElement("div");title.className="ep-title";title.textContent=e.title||"Video";
@@ -502,16 +504,16 @@ const DOWNLOAD_JOBS_KEY="ary-download-jobs-v1";const downloadJobs=new Map((()=>{
 function formatBytes(n){n=Number(n)||0;if(n<1024)return n+" B";const units=["KB","MB","GB","TB"];let i=-1;do{n/=1024;i++}while(n>=1024&&i<units.length-1);return n.toFixed(i>0?2:1)+" "+units[i]}
 function toggleDownloadCenter(){const p=$("downloadCenter");p.classList.toggle("open");if(p.classList.contains("open"))$("downloadMini").classList.remove("show")}
 async function enableDownloadNotifications(){if(!("Notification" in window)){$("downloadPermission").textContent="This browser does not support system notifications; in-page download alerts still work.";return}try{const permission=await Notification.requestPermission();if(permission==="granted"&&"serviceWorker" in navigator){try{notificationRegistration=await navigator.serviceWorker.ready}catch{}}$("downloadPermission").textContent=permission==="granted"?"Browser notifications enabled.":"Notifications not enabled; in-page alerts remain available.";if(permission==="granted")notifyBrowser("ARY Episode Watcher","Download notifications are enabled.");}catch{$("downloadPermission").textContent="Could not request notification permission in this browser."}}
-function notifyBrowser(title,body){if(!("Notification" in window)||Notification.permission!=="granted")return;const options={body,tag:"ary-download-"+Date.now(),icon:"/api/image?url="+encodeURIComponent("https://aryplus.tv/favicon.ico")};if(notificationRegistration?.showNotification){notificationRegistration.showNotification(title,options).catch(()=>{});return}if("serviceWorker" in navigator){navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,options)).catch(()=>{});return}try{new Notification(title,options)}catch{}}
+function notifyBrowser(title,body){if(!("Notification" in window)||Notification.permission!=="granted")return;const options={body,tag:"stream-download-"+Date.now()};if(notificationRegistration?.showNotification){notificationRegistration.showNotification(title,options).catch(()=>{});return}if("serviceWorker" in navigator){navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,options)).catch(()=>{});return}try{new Notification(title,options)}catch{}}
 function renderDownloadJobs(){const list=$("downloadList");const items=[...downloadJobs.values()].sort((a,b)=>b.updated-a.updated);try{localStorage.setItem(DOWNLOAD_JOBS_KEY,JSON.stringify(items.slice(0,40)))}catch{}$("downloadBadge").textContent=String(items.filter(x=>!["completed","error"].includes(x.state)).length);$("downloadMini").classList.toggle("show",items.length>0&&!$("downloadCenter").classList.contains("open"));if(!items.length){list.innerHTML='<div class="download-item-status">No downloads yet.</div>';return}list.innerHTML=items.map(j=>{const done=j.state==="completed",failed=j.state==="error",status=done?"Ready to save to device":failed?("Failed: "+(j.error||"Unknown error")):(j.state==="downloading"?"Downloading":"Preparing download")+" · "+formatBytes(j.size||0)+(j.speed?" · "+esc(j.speed):"");return '<article class="download-item"><div class="download-item-top"><div class="download-item-title">'+esc(j.title||j.filename||"Episode download")+'</div><span class="count">'+(done?"✓":failed?"!":"…")+'</span></div><div class="download-item-status">'+esc(status)+'</div><div class="download-track '+(done?"done":"")+'"><i></i></div>'+(done?'<a href="/api/download/file/'+encodeURIComponent(j.id)+'" download="'+esc((j.filename||"episode.mp4").split(/[\\/]/).pop())+'" onclick="downloadLinkClicked(\''+esc(j.id)+'\')">↓ Save file to device</a>':"")+'</article>'}).join("")}
 function downloadLinkClicked(id){const j=downloadJobs.get(id);if(j){j.saved=true;j.updated=Date.now();renderDownloadJobs();toast("Browser download started. Check your browser Downloads.");notifyBrowser("Download started",j.title||"Your file is being saved.")}}
-async function downloadEpisode(id,button){const box=$("status-"+CSS.escape(id));if(box)box.textContent="Preparing highest-quality download…";if(button)button.disabled=true;toggleDownloadCenterIfNeeded();try{const e=episodes.find(x=>x.id===id),title=(currentSeries?.title||"ARY+")+" · "+(e?.number!=null?"EP "+e.number+" · ":"")+(e?.title||"Episode");const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));const job={...d.job,title,updated:Date.now()};downloadJobs.set(job.id,job);renderDownloadJobs();if(box)box.textContent="Download queued · progress is shown in Download manager.";toast("Download started — open Download manager for status.");notifyBrowser("Download started",title);pollDownload(job.id,id,button);if($("downloadCenter").classList.contains("open"))renderDownloadJobs()}catch(err){if(box)box.textContent="Download unavailable: "+err.message;if(button)button.disabled=false;toast("Download failed: "+err.message)}}
+async function downloadEpisode(id,button){const box=$("status-"+CSS.escape(id));if(box)box.textContent="Preparing highest-quality download…";if(button)button.disabled=true;toggleDownloadCenterIfNeeded();try{const e=episodes.find(x=>x.id===id),title=(currentSeries?.title||"Video")+" · "+(e?.number!=null?"EP "+e.number+" · ":"")+(e?.title||"Episode");const d=await get("/api/download?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(id)+"&number="+encodeURIComponent(e?.number??"")+"&title="+encodeURIComponent(e?.title||""));const job={...d.job,title,updated:Date.now()};downloadJobs.set(job.id,job);renderDownloadJobs();if(box)box.textContent="Download queued · progress is shown in Download manager.";toast("Download started — open Download manager for status.");notifyBrowser("Download started",title);pollDownload(job.id,id,button);if($("downloadCenter").classList.contains("open"))renderDownloadJobs()}catch(err){if(box)box.textContent="Download unavailable: "+err.message;if(button)button.disabled=false;toast("Download failed: "+err.message)}}
 function toggleDownloadCenterIfNeeded(){const p=$("downloadCenter");if(!p.classList.contains("open")){p.classList.add("open");$("downloadMini").classList.remove("show")}}
 async function pollDownload(jobId,episodeId,button){try{const response=await get("/api/download/"+encodeURIComponent(jobId));const previous=downloadJobs.get(jobId)||{};const job={...previous,...response.job,title:previous.title||response.job.episode_title||"Episode download",updated:Date.now()};downloadJobs.set(jobId,job);renderDownloadJobs();const box=$("status-"+CSS.escape(episodeId));if(job.state==="completed"){if(box)box.textContent="✓ Download ready · "+formatBytes(job.size)+" · tap Save file in Download manager.";if(button)button.disabled=false;if(!job.notified){job.notified=true;notifyBrowser("Download ready",job.title+" is ready. Open the download manager to save it.");toast("Download ready — tap Save file in Download manager.")}return}else if(job.state==="error"){if(box)box.textContent="Download failed: "+(job.error||"Unknown error");if(button)button.disabled=false;toast("Download failed: "+(job.error||"Unknown error"));return}else{if(box)box.textContent=(job.state==="downloading"?"Downloading":"Preparing")+" · "+formatBytes(job.size)+" · "+(job.speed||"");setTimeout(()=>pollDownload(jobId,episodeId,button),1200)}}catch(e){setTimeout(()=>pollDownload(jobId,episodeId,button),2200)}}
 function resumeDownloadPolling(){for(const j of downloadJobs.values()){if(j&&j.id&&!["completed","error"].includes(j.state)&&!j._resumePending){j._resumePending=true;get("/api/download/"+encodeURIComponent(j.id)).then(d=>{const latest={...j,...d.job,updated:Date.now()};delete latest._resumePending;downloadJobs.set(j.id,latest);renderDownloadJobs();if(!["completed","error"].includes(latest.state))pollDownload(j.id,latest.episode_id||"",null)}).catch(()=>{delete j._resumePending})}}}
 function openLivePlayer(){const modal=$("liveModal");modal.classList.add("open");if($("liveFrame").src==="about:blank")$("liveFrame").src="https://live.arydigital.tv/";document.body.style.overflow="hidden"}
 function closeLivePlayer(){ $("liveModal").classList.remove("open");$("liveFrame").src="about:blank";document.body.style.overflow=$("detail").classList.contains("open")||$("player").classList.contains("open")?"hidden":""}
-function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpisode,v.currentTime||0,true);destroyPlayer();$("player").classList.remove("open");$("settings").classList.remove("open");document.body.style.overflow=$("detail").classList.contains("open")?"hidden":""}
+function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpisode,v.currentTime||0,false);destroyPlayer();$("player").classList.remove("open","locked","hidden-ui","landscape-fallback");locked=false;orientationFallback=false;clearTimeout(playerHideTimer);try{screen.orientation?.unlock?.()}catch{}$("settings").classList.remove("open");document.body.style.overflow=$("detail").classList.contains("open")?"hidden":""}
 function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow=""}
 function heroPlay(){if(series[0])openSeries(series[0].id)}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
@@ -531,6 +533,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("liveModal").clas
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("player").classList.contains("open"))closePlayer()});
 window.addEventListener("pagehide",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling()}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling()});
+bindPlayerControls();
 renderDownloadJobs();
 loadSeries();
 </script>
