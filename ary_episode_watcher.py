@@ -11,6 +11,8 @@ import subprocess
 import threading
 import time
 import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -1000,6 +1002,54 @@ def _episode_api_candidates(text: str, series_id: str) -> list[str]:
     return candidates[:40]
 
 
+def _is_vod_storage_url(value: Any) -> bool:
+    """Accept only ARY's on-demand VOD host, never the live TV site."""
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return parsed.scheme == "https" and (host == "vod.aryzap.com" or host.endswith(".vod.aryzap.com"))
+
+
+def _resolve_vod_stream(episode_id: str) -> str | None:
+    """Resolve an episode ID through ARY's VOD episode endpoint."""
+    try:
+        payload = api_json("/api/cdn/ep/" + quote(episode_id, safe=""), timeout=20)
+        source = _find_video_source(payload)
+        return source if _is_vod_storage_url(source) else None
+    except Exception as exc:
+        print(f"[DAR-E-NIJAAT] VOD source not ready for {episode_id}: {exc}", flush=True)
+        return None
+
+
+def _is_episode_auto_check_window(now: datetime | None = None) -> bool:
+    """The drama publishes on Friday/Saturday; check VOD after 21:15 IST."""
+    ist = ZoneInfo("Asia/Kolkata")
+    local_now = now.astimezone(ist) if now and now.tzinfo else (now.replace(tzinfo=ist) if now else datetime.now(ist))
+    return local_now.weekday() in (4, 5) and (local_now.hour, local_now.minute) >= (21, 15)
+
+
+def episode_auto_check_loop() -> None:
+    """Background VOD catalogue checks on the scheduled release evenings."""
+    last_attempt = 0.0
+    while True:
+        try:
+            now = datetime.now(ZoneInfo("Asia/Kolkata"))
+            if _is_episode_auto_check_window(now) and time.time() - last_attempt >= 300:
+                last_attempt = time.time()
+                try:
+                    before = len(CACHE.get("episodes:dar-e-nijaat", []) or [])
+                    updated = catalogue("dar-e-nijaat", force=True)
+                    after = len(updated)
+                    latest = max((int(item.get("number") or 0) for item in updated), default=0)
+                    print(f"[DAR-E-NIJAAT] Scheduled VOD check complete: {after} episodes, latest #{latest} (was {before})", flush=True)
+                except Exception as exc:
+                    print(f"[DAR-E-NIJAAT] Scheduled VOD check failed: {exc}", flush=True)
+        except Exception as exc:
+            print(f"[DAR-E-NIJAAT] Scheduler error: {exc}", flush=True)
+        time.sleep(30)
+
+
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
@@ -1121,15 +1171,17 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     continue
                 if episode_id in api_seen_ids or episode_number in api_seen_numbers:
                     continue
-                stream_url = (
-                    _media_url(raw.get("videoSource"), "https://arydigital.tv")
-                    or _media_url(raw.get("video_source"), "https://arydigital.tv")
-                    or _media_url(raw.get("streamUrl"), "https://arydigital.tv")
-                    or _media_url(raw.get("stream_url"), "https://arydigital.tv")
-                    or _media_url(raw.get("videoUrl"), "https://arydigital.tv")
-                    or _media_url(raw.get("video_url"), "https://arydigital.tv")
-                    or _media_url(raw.get("source"), "https://arydigital.tv")
-                )
+                stream_url = next((candidate for candidate in (
+                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("video_source"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("stream_url"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("source"), "https://vod.aryzap.com/"),
+                ) if _is_vod_storage_url(candidate)), None)
+                if not stream_url:
+                    stream_url = _resolve_vod_stream(episode_id)
                 episodes.append({
                     "id": episode_id,
                     "api_id": episode_id,
@@ -1206,15 +1258,17 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     continue
                 if episode_id in seen_ids:
                     continue
-                stream_url = (
-                    _media_url(raw.get("videoSource"), "https://arydigital.tv")
-                    or _media_url(raw.get("video_source"), "https://arydigital.tv")
-                    or _media_url(raw.get("streamUrl"), "https://arydigital.tv")
-                    or _media_url(raw.get("stream_url"), "https://arydigital.tv")
-                    or _media_url(raw.get("videoUrl"), "https://arydigital.tv")
-                    or _media_url(raw.get("video_url"), "https://arydigital.tv")
-                    or _media_url(raw.get("source"), "https://arydigital.tv")
-                )
+                stream_url = next((candidate for candidate in (
+                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("video_source"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("stream_url"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("source"), "https://vod.aryzap.com/"),
+                ) if _is_vod_storage_url(candidate)), None)
+                if not stream_url:
+                    stream_url = _resolve_vod_stream(episode_id)
                 additions.append({
                     "id": episode_id,
                     "api_id": episode_id,
@@ -1419,9 +1473,12 @@ def inspect_episode_stream(episode_id: str, source_hint: str | None = None) -> d
     if not source:
         try:
             data = api_json("/api/cdn/ep/" + quote(episode_id, safe=""))
-            source = _find_video_source(data)
+            candidate = _find_video_source(data)
+            source = candidate if _is_vod_storage_url(candidate) else None
         except Exception:
             source = None
+    elif not _is_vod_storage_url(source):
+        source = None
     if not source:
         raise RuntimeError(
             "No accessible direct video source is available for in-app playback or download. "
@@ -1760,6 +1817,8 @@ def main():
     print(f"ARY Watcher listening on http://{HOST}:{PORT}", flush=True)
     print(f"Project: {APP_DIR}", flush=True)
     print("Press Ctrl+C to stop.", flush=True)
+    threading.Thread(target=episode_auto_check_loop, name="dar-e-nijaat-vod-auto-check", daemon=True).start()
+    print("Dar-E-Nijaat auto-detection: Friday/Saturday after 21:15 IST, polling VOD every 5 minutes while server runs.", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
