@@ -176,8 +176,8 @@ public class MainActivity extends Activity {
         appFullscreen = enabled;
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.setSystemBarsAppearance(0, WindowInsetsControllerCompat.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsControllerCompat.APPEARANCE_LIGHT_NAVIGATION_BARS);
         if (enabled) {
-            controller.setSystemBarsAppearance(0, WindowInsetsControllerCompat.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsControllerCompat.APPEARANCE_LIGHT_NAVIGATION_BARS);
             controller.hide(WindowInsetsCompat.Type.systemBars());
             if (root != null) root.setPadding(0, 0, 0, 0);
         } else {
