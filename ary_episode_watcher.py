@@ -6,6 +6,7 @@ import os
 import html
 import re
 import shutil
+import shlex
 import subprocess
 import threading
 import time
@@ -18,8 +19,8 @@ from urllib.request import Request, urlopen
 
 from live_check import inspect_live_page
 
-APP_DIR = Path(__file__).resolve().parent
-WEB_DIR = APP_DIR / "web"
+APP_DIR = Path(os.environ.get("ARY_APP_DIR", str(Path(__file__).resolve().parent)))
+WEB_DIR = Path(os.environ.get("ARY_WEB_DIR", str(APP_DIR / "web")))
 
 ARY_BASE = os.environ.get("ARY_BASE_URL", "https://be.aryplus.tv").rstrip("/")
 ARY_WEB = os.environ.get("ARY_WEB_URL", "https://aryplus.tv").rstrip("/")
@@ -1278,47 +1279,66 @@ def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, r
     ]
     try:
         started = time.time()
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
-        # FFmpeg progress output is machine-readable and independent of terminal width.
-        if process.stdout:
-            for line in process.stdout:
-                line = line.strip()
-                if "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                if key == "total_size":
-                    try:
-                        size = max(0, int(value))
-                        elapsed = max(0.1, time.time() - started)
-                        _job_update(job_id, size=size, speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s")
-                    except ValueError:
-                        pass
-                elif key == "speed" and value not in {"N/A", "0x"}:
-                    _job_update(job_id, speed=value)
-                elif key == "progress" and value == "end":
-                    _job_update(job_id, percent=99)
-        code = process.wait()
-        error_text = process.stderr.read().strip() if process.stderr else ""
-        if code != 0:
-            raise RuntimeError(error_text or f"ffmpeg exited with {code}")
+        if os.environ.get("ARY_ANDROID_APP") == "1":
+            # FFmpegKit is packaged as a native Android dependency in the standalone APK.
+            from com.arthenica.ffmpegkit import FFmpegKit, FFprobeKit, ReturnCode
+
+            _job_update(job_id, percent=5, speed="Starting native FFmpeg…")
+            command_text = shlex.join(command[1:])
+            session = FFmpegKit.execute(command_text)
+            code = session.getReturnCode()
+            if not ReturnCode.isSuccess(code):
+                details = session.getFailStackTrace() or session.getOutput() or "FFmpegKit failed."
+                raise RuntimeError(str(details))
+            _job_update(job_id, percent=95, speed="Validating file…")
+            probe_command = shlex.join([
+                "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=width,height", "-of", "json", str(output),
+            ])
+            probe = FFprobeKit.execute(probe_command)
+            if not ReturnCode.isSuccess(probe.getReturnCode()):
+                raise RuntimeError("FFprobe could not validate the downloaded file.")
+        else:
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            # FFmpeg progress output is machine-readable and independent of terminal width.
+            if process.stdout:
+                for line in process.stdout:
+                    line = line.strip()
+                    if "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    if key == "total_size":
+                        try:
+                            size = max(0, int(value))
+                            elapsed = max(0.1, time.time() - started)
+                            _job_update(job_id, size=size, speed=f"{size / elapsed / 1024 / 1024:.1f} MB/s")
+                        except ValueError:
+                            pass
+                    elif key == "speed" and value not in {"N/A", "0x"}:
+                        _job_update(job_id, speed=value)
+                    elif key == "progress" and value == "end":
+                        _job_update(job_id, percent=99)
+            code = process.wait()
+            error_text = process.stderr.read().strip() if process.stderr else ""
+            if code != 0:
+                raise RuntimeError(error_text or f"ffmpeg exited with {code}")
+            ffprobe = shutil.which("ffprobe")
+            if ffprobe:
+                check = subprocess.run(
+                    [ffprobe, "-v", "error", "-select_streams", "v:0",
+                     "-show_entries", "stream=width,height", "-of", "json", str(output)],
+                    capture_output=True, text=True, check=False,
+                )
+                if check.returncode != 0:
+                    raise RuntimeError("ffprobe could not validate the downloaded file.")
         if not output.exists() or output.stat().st_size == 0:
             raise RuntimeError("FFmpeg completed without creating a file.")
-
-        ffprobe = shutil.which("ffprobe")
-        if ffprobe:
-            check = subprocess.run(
-                [ffprobe, "-v", "error", "-select_streams", "v:0",
-                 "-show_entries", "stream=width,height", "-of", "json", str(output)],
-                capture_output=True, text=True, check=False,
-            )
-            if check.returncode != 0:
-                raise RuntimeError("ffprobe could not validate the downloaded file.")
         size = output.stat().st_size
         _job_update(job_id, state="completed", percent=100, size=size, speed="", filename=str(output))
     except Exception as exc:
@@ -1425,8 +1445,8 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "host": HOST,
                     "port": PORT,
-                    "ffmpeg": shutil.which("ffmpeg") is not None,
-                    "ffprobe": shutil.which("ffprobe") is not None,
+                    "ffmpeg": shutil.which("ffmpeg") is not None or os.environ.get("ARY_ANDROID_APP") == "1",
+                    "ffprobe": shutil.which("ffprobe") is not None or os.environ.get("ARY_ANDROID_APP") == "1",
                     "download_dir": str(DOWNLOAD_DIR),
                 })
 
