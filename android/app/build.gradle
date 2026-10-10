@@ -12,7 +12,7 @@ android {
         minSdk 24
         targetSdk 35
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.1.0"
         ndk { abiFilters "arm64-v8a", "x86_64" }
     }
 
@@ -30,5 +30,6 @@ chaquopy {
 }
 
 dependencies {
+    implementation "androidx.core:core:1.15.0"
     implementation "dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.7"
 }
