@@ -1284,7 +1284,11 @@ def _download_worker(job_id: str, stream_url: str, output: Path, quality: str, r
             from com.arthenica.ffmpegkit import FFmpegKit, FFprobeKit, ReturnCode
 
             _job_update(job_id, percent=5, speed="Starting native FFmpeg…")
-            command_text = shlex.join(command[1:])
+            android_command = command[1:]
+            if "-progress" in android_command:
+                progress_at = android_command.index("-progress")
+                del android_command[progress_at:progress_at + 2]
+            command_text = shlex.join(android_command)
             session = FFmpegKit.execute(command_text)
             code = session.getReturnCode()
             if not ReturnCode.isSuccess(code):
@@ -1520,13 +1524,18 @@ class Handler(BaseHTTPRequestHandler):
                 output = Path(job["filename"]).resolve()
                 if not output.is_file() or not output.is_relative_to(DOWNLOAD_DIR.resolve()):
                     return json_response(self, {"ok": False, "error": "Download file is unavailable."}, 404)
-                data = output.read_bytes()
+                size = output.stat().st_size
                 self.send_response(200)
                 self.send_header("Content-Type", "video/mp4")
-                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Length", str(size))
                 self.send_header("Content-Disposition", 'attachment; filename="' + output.name.replace('"', "") + '"')
                 self.end_headers()
-                self.wfile.write(data)
+                with output.open("rb") as stream:
+                    while True:
+                        chunk = stream.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
                 return
 
             if path.startswith("/api/download/"):
