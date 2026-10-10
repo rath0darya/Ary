@@ -4,7 +4,7 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 
 ## Features
 
-- Dynamic ARY Plus series discovery across ARY Plus catalogue genres.
+- Series discovery and metadata enrichment from configured catalogue sources.
 - Dar-E-Nijaat uses a canonical repository mapping of 20 real episode IDs and saved HLS source URLs; other catalogue entries are discovered at runtime.
 - Inspects the HLS master playlist and exposes every advertised resolution.
 - Automatically selects the highest advertised video resolution.
@@ -13,17 +13,16 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 - Background download jobs with progress/status API.
 - OTT-style cinematic home page with a featured hero, horizontal poster rails, mobile-first layouts, and category/genre filters.
 - Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
-- Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
+- Premium, native-style transparent player overlay: double-tap left/right to skip 10 seconds, a timestamp-matched video preview while scrubbing, quality and speed controls, lock/unlock touch controls, orientation and fullscreen toggles, auto-hide overlays, and resume playback.
 - Episode cards provide prominent in-app Stream and Download buttons; playlist/quality inspection is a secondary action.
 - Stream and download actions use the backend `/api/stream-info` and `/api/download` endpoints; downloads appear in the in-page manager and are saved to the device by tapping **Save file to device**.
 - Browser HLS playback using HLS.js when the source permits browser playback.
-- Manual ARY Digital Live availability check from the website interface whenever you choose.
 - No external AI/API service.
 - API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
 - Browser catalogue and episode state is cached for the current tab so returning from another app can reuse saved data instead of flashing an empty loading screen. Hiding the tab saves playback position without incorrectly marking the episode as finished.
 - Designed for Android/Termux, with optional Termux wake-lock support and a background server mode.
 
-Use the downloader only for media you are authorized to download. The live check is manual only: it does not schedule checks, run in the background, or record/archive the live broadcast.
+Use the downloader only for media you are authorized to download. The website uses an in-app player and does not redirect users to provider-branded playback pages.
 
 ## Requirements
 
@@ -50,16 +49,9 @@ For a custom port:
 
     ARYWEB_PORT=8787 python ary_episode_watcher.py
 
-## Manual ARY Digital live check
-
-Open the website and press **Check now** in the ARY Digital Live panel whenever you want to check the broadcast. The tool checks the public live page for an accessible HLS playlist and reports the result. It does not run a scheduler, poll in the background, or record the stream. If the page loads its stream through a dynamic player API, the check may say it cannot discover the playlist even while the official player works.
-
-Official page: https://live.arydigital.tv/
-
 ## API
 
 - GET /api/health
-- GET /api/live/check (manual, on-demand check; no scheduling)
 - GET /api/series
 - GET /api/episodes?series=<series-id>
 - GET /api/stream-info?series=<series-id>&episode=<episode-id>
@@ -113,7 +105,7 @@ The app selects the highest HLS resolution, but resolution alone does not guaran
 
 ## Modern web UI and Termux menu
 
-The responsive web interface includes catalogue search and filters, poster art, an in-page ARY Digital Live viewer (the official page may block embedding in some browsers), a download manager panel, live size/speed updates, and optional browser notifications. Download notifications require granting permission in the browser; the **Save file to device** link still needs a user tap so Android/browser download handling can take over. The tool does not record the live broadcast.
+The responsive web interface includes catalogue search and filters, poster art with proxy/direct-image fallback, a premium in-app player, a download manager panel, live size/speed updates, and optional browser notifications. The player keeps settings inside the transparent video overlay and does not expose external provider redirect buttons. Download notifications require granting permission in the browser; the **Save file to device** link still needs a user tap so Android/browser download handling can take over. The tool does not record the live broadcast.
 
 Install the Termux commands from the repository directory:
 
