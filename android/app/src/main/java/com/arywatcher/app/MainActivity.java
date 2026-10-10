@@ -2,16 +2,20 @@ package com.arywatcher.app;
 
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.app.PictureInPictureParams;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.provider.Settings;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.util.Rational;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -54,6 +58,7 @@ public class MainActivity extends Activity {
     private WebChromeClient chromeClient;
     private FrameLayout root;
     private volatile boolean appFullscreen = false;
+    private volatile boolean pipAutoEnter = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -187,7 +192,68 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updatePipParams(boolean autoEnter) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        try {
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(16, 9));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(autoEnter);
+            setPictureInPictureParams(builder.build());
+        } catch (Exception error) {
+            android.util.Log.w("CineWave", "Could not update PiP parameters", error);
+        }
+    }
+
+    private void enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(this, "Picture-in-picture requires Android 8.0 or newer.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            Toast.makeText(this, "Picture-in-picture is not supported on this device.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            updatePipParams(false);
+            enterPictureInPictureMode(new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build());
+        } catch (Exception error) {
+            android.util.Log.e("CineWave", "Could not enter picture-in-picture", error);
+            Toast.makeText(this, "Could not start picture-in-picture. Check Android app settings.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && pipAutoEnter) {
+            enterPipMode();
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, android.content.res.Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        if (webView != null) {
+            String script = "document.getElementById('player')?.classList." +
+                (isInPictureInPictureMode ? "add" : "remove") + "('pip-mode')";
+            webView.evaluateJavascript(script, null);
+        }
+        if (isInPictureInPictureMode) {
+            appFullscreen = true;
+        } else {
+            appFullscreen = false;
+            if (root != null) ViewCompat.requestApplyInsets(root);
+        }
+    }
+
     private final class AndroidBridge {
+        @JavascriptInterface public void enterPictureInPicture() {
+            runOnUiThread(() -> enterPipMode());
+        }
+        @JavascriptInterface public void setPipAutoEnter(boolean enabled) {
+            pipAutoEnter = enabled;
+            runOnUiThread(() -> updatePipParams(enabled));
+        }
         @JavascriptInterface public void setFullscreen(boolean enabled) {
             runOnUiThread(() -> setImmersiveFullscreen(enabled));
         }
