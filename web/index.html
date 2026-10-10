@@ -449,7 +449,6 @@ async function playEpisode(e,pos=0,selectedSource=null,selectedQualityIndex=null
 function attachStream(source,pos){
  const v=$("video");v.controls=false;v.playsInline=true;v.playbackRate=Number($("playbackSpeed").value)||1;
  v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=Math.min(pos,v.duration-.1);updatePlayerProgress();v.play().catch(()=>{$("playerNote").textContent="Tap Play to start playback."})};
- v.ontimeupdate=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime);updatePlayerProgress()};
  v.onprogress=updatePlayerProgress;v.oncanplay=updatePlayerProgress;
  v.onplay=()=>{$("playerNote").textContent="Playing";$("centerPlay").textContent="Ⅱ";showPlayerControls()};
  v.onpause=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime,false);$("centerPlay").textContent="▶";clearTimeout(playerHideTimer);updatePlayerProgress()};
