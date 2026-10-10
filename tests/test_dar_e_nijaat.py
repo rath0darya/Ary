@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from ary_episode_watcher import APP_DIR, catalogue
+from ary_episode_watcher import APP_DIR, CACHE, catalogue
 
 
 class DarENijaatCatalogueTests(unittest.TestCase):
@@ -22,7 +22,9 @@ class DarENijaatCatalogueTests(unittest.TestCase):
         source = json.loads((APP_DIR / "dar-e-nijaat-all-m3u8.json").read_text(encoding="utf-8"))
         # Keep this unit test offline and deterministic; live discovery is
         # covered by the backend's runtime refresh path.
-        with patch("ary_episode_watcher.http_text", return_value="<html></html>"):
+        with patch("ary_episode_watcher.http_text", return_value="<html></html>"), patch(
+            "ary_episode_watcher.api_json", return_value={"episode": [], "hasNextPage": False}
+        ):
             episodes = catalogue("dar-e-nijaat", force=True)
         # The live catalogue may contain episodes newer than the 20-entry
         # verified baseline. Every baseline entry must remain present.
@@ -35,6 +37,27 @@ class DarENijaatCatalogueTests(unittest.TestCase):
                 self.assertEqual(backend_item["api_id"], item["id"])
                 self.assertEqual(backend_item["stream"], item["m3u8"])
 
+
+    def test_live_ary_api_adds_episode_beyond_twenty(self):
+        CACHE.pop('episodes:dar-e-nijaat', None)
+        CACHE.pop('dar_e_nijaat_checked_at', None)
+        episode_21 = {
+            'id': '6aff00000000000000000021',
+            'videoEpNumber': 21,
+            'videoTitle': 'Dar-E-Nijaat Episode 21',
+        }
+        def api_response(path, timeout=20):
+            if '/api/v2/cdn/pg/' in path and 'page=1' in path:
+                return {'episode': [episode_21], 'hasNextPage': False, 'totalPages': 1}
+            return {'episode': [], 'hasNextPage': False}
+        with patch('ary_episode_watcher.api_json', side_effect=api_response), patch(
+            'ary_episode_watcher.http_text', return_value='<html></html>'
+        ):
+            episodes = catalogue('dar-e-nijaat', force=True)
+        by_number = {int(item['number']): item for item in episodes}
+        self.assertIn(21, by_number)
+        self.assertEqual(by_number[21]['id'], episode_21['id'])
+        self.assertEqual(by_number[21]['api_id'], episode_21['id'])
 
 if __name__ == "__main__":
     unittest.main()
