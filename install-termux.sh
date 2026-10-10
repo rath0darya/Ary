@@ -27,7 +27,7 @@ PY
 
 wake_lock() { command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock >/dev/null 2>&1 || true; }
 wake_unlock() { command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock >/dev/null 2>&1 || true; }
-running_pid() { if [[ -f "\$PID_FILE" ]]; then local p; p="$(cat "\$PID_FILE" 2>/dev/null || true)"; [[ -n "\$p" ]] && kill -0 "\$p" 2>/dev/null && return 0; fi; return 1; }
+running_pid() { if [[ -f "\$PID_FILE" ]]; then local p args; p="$(cat "\$PID_FILE" 2>/dev/null || true)"; if [[ -n "\$p" ]] && kill -0 "\$p" 2>/dev/null; then args="$(ps -p "\$p" -o args= 2>/dev/null || true)"; [[ "\$args" == *"\$APP_DIR/ary_episode_watcher.py"* ]] && return 0; fi; fi; return 1; }
 
 case "\${1:-}" in
   --foreground|-f)
