@@ -1059,11 +1059,26 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             int(item["number"]) for item in episodes
             if str(item.get("number", "")).isdigit()
         }
+        # Preserve previously discovered episodes across refreshes/restarts,
+        # even if ARY's page is temporarily unavailable during this check.
+        with CACHE_LOCK:
+            previous_episodes = list(CACHE.get(key, []) or [])
+        canonical_ids = {str(item["id"]) for item in episodes}
+        for previous in previous_episodes:
+            previous_id = str(previous.get("id") or "")
+            try:
+                previous_number = int(previous.get("number"))
+            except (TypeError, ValueError):
+                continue
+            if previous_id and previous_id not in canonical_ids and previous_number not in known_numbers:
+                episodes.append(previous)
+                canonical_ids.add(previous_id)
+                known_numbers.add(previous_number)
         series_page_url = "https://arydigital.tv/drama/dar-e-nijaat/"
         candidate_numbers: set[int] = set()
         try:
             series_page = http_text(series_page_url, {"Referer": "https://arydigital.tv/"}, timeout=20)
-            for match in re.finditer(r"(?:episode[-/](\\d+))", html.unescape(series_page), re.I):
+            for match in re.finditer(r"(?:episode[-/](\d+))", html.unescape(series_page), re.I):
                 candidate_numbers.add(int(match.group(1)))
         except Exception as exc:
             print("[DAR-E-NIJAAT] Official episode guide refresh failed:", exc, flush=True)
