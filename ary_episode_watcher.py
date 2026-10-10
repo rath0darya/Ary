@@ -987,54 +987,56 @@ def _episode_api_candidates(text: str, series_id: str) -> list[str]:
     return candidates[:40]
 
 
-# Numeric IDs recovered from the project's earlier stream-inspection history.
-# Keep app-facing episode IDs separate so the UI remains stable.
-DAR_E_NIJAAT_API_IDS = {
-    15: "6aaeb19765a92de0f19da7e4",
-    16: "6ab6818de2d45a788e51d21a",
-}
-
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
         raise ValueError("series is required")
     key = _series_key(series_id)
 
-    # Use official episode pages rather than inventing direct stream/download URLs.
-    if series_id.lower() in {"dar-e-nijaat", "dar_e_nijaat", "dar-e-nijaat-series"}:
-        with CACHE_LOCK:
-            if not force and CACHE.get(key) and all(x.get("official_url") and ("api_id" in x or x.get("number") not in DAR_E_NIJAAT_API_IDS) for x in CACHE[key]):
-                return CACHE[key]
-        guide_url = "https://arydigital.tv/drama/dar-e-nijaat/"
-        page = http_text(guide_url, {"Referer": "https://arydigital.tv/"}, timeout=30)
-        episode_numbers = sorted({
-            int(n) for n in re.findall(
-                r"/drama/dar-e-nijaat/episode-(\d+)/?",
-                html.unescape(page),
-                re.I,
-            )
-        })
-        if not episode_numbers:
-            # Public guide currently lists episodes 1–20. These remain official
-            # page links, not claims that direct stream URLs were extracted.
-            episode_numbers = list(range(1, 21))
-        episodes = [{
-            "id": f"dar-e-nijaat-episode-{n}",
-            "api_id": DAR_E_NIJAAT_API_IDS.get(n),
-            "number": n,
-            "title": f"Dar-E-Nijaat Episode {n}",
-            "date": None,
-            "thumbnail": None,
-            "stream": None,
-            "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{n}/",
-            "official_only": True,
-            "description": "Direct playback is enabled only when a publicly exposed, non-DRM media URL is available.",
-            "next_episode_id": None,
-            "raw": {"source": "arydigital.tv"},
-        } for n in episode_numbers]
+    # Dar-E-Nijaat's verified episode IDs and HLS sources are maintained in
+    # the repository's canonical JSON file. Do not substitute placeholder IDs.
+    dar_e_nijaat_aliases = {
+        "dar-e-nijaat",
+        "dar_e_nijaat",
+        "dar-e-nijaat-series",
+        "6a57868b5bf57c474cc00a50",
+    }
+    if series_id.lower() in dar_e_nijaat_aliases:
+        source_file = APP_DIR / "dar-e-nijaat-all-m3u8.json"
+        try:
+            source_data = json.loads(source_file.read_text(encoding="utf-8"))
+            saved_items = source_data.get("episodes", [])
+            if not isinstance(saved_items, list) or not saved_items:
+                raise ValueError("canonical episode list is empty")
+            episodes: list[dict[str, Any]] = []
+            for item in saved_items:
+                number = int(item["episode"])
+                episode_id = str(item["id"])
+                stream_url = str(item["m3u8"])
+                if not episode_id or not stream_url.startswith(("https://", "http://")):
+                    raise ValueError(f"invalid canonical data for episode {number}")
+                episodes.append({
+                    "id": episode_id,
+                    "api_id": episode_id,
+                    "number": number,
+                    "title": f"Dar-E-Nijaat Episode {number}",
+                    "date": None,
+                    "thumbnail": None,
+                    "stream": stream_url,
+                    "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/",
+                    "official_only": False,
+                    "description": "Uses the saved HLS source for this episode.",
+                    "next_episode_id": None,
+                    "raw": {"source": "dar-e-nijaat-all-m3u8.json", "episode": number},
+                })
+            episodes.sort(key=lambda episode: episode["number"])
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Unable to load canonical Dar-E-Nijaat episode data: {exc}") from exc
+
         with CACHE_LOCK:
             CACHE[key] = episodes
         _save_catalogue_store()
+        print(f"[CATALOGUE] Loaded {len(episodes)} saved Dar-E-Nijaat episodes", flush=True)
         return episodes
 
     with CACHE_LOCK:
