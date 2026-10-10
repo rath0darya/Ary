@@ -1,4 +1,4 @@
-# ARY Episode Watcher — standalone Android APK
+# CineWave — standalone Android APK
 
 This Android app packages the CINE•WAVE web interface, Python backend, catalogue seed data, and FFmpegKit native runtime inside one APK. It does not require Termux, a separately installed Python app, a browser, or a hosted copy of this website. Online catalogue and stream sources still require internet access.
 
@@ -7,7 +7,7 @@ This Android app packages the CINE•WAVE web interface, Python backend, catalog
 1. Open the repository on GitHub.
 2. Select Actions → Build standalone Android APK → Run workflow.
 3. Wait for the build to finish.
-4. Open the completed workflow run and download the temporary ary-episode-watcher-debug-apk artifact.
+4. Open the completed workflow run and download the temporary cinewave-android-apk artifact.
 5. Extract the ZIP and install app-debug.apk on an Android device. If Android asks, allow installation from that source.
 
 The workflow keeps the APK as a temporary GitHub Actions artifact for 7 days. It does not publish a GitHub Release or host a permanent APK download page.
