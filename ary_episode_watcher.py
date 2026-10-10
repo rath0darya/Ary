@@ -1511,8 +1511,16 @@ class Handler(BaseHTTPRequestHandler):
                 return json_response(self, {"ok": True, "job": job})
 
             return json_response(self, {"ok": False, "error": "Not found"}, 404)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # The browser cancelled or closed the request; there is no client
+            # left to receive an error response.
+            return
         except Exception as exc:
-            return json_response(self, {"ok": False, "error": str(exc)}, 500)
+            print(f"[HTTP-ERROR] {path}: {type(exc).__name__}: {exc}", flush=True)
+            try:
+                return json_response(self, {"ok": False, "error": str(exc)}, 500)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                return
 
 
 def main():
