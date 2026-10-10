@@ -3,6 +3,9 @@ package com.arywatcher.app;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.media.AudioManager;
+import android.provider.Settings;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -12,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -20,6 +24,12 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
@@ -43,14 +53,24 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customViewCallback;
     private WebChromeClient chromeClient;
     private FrameLayout root;
+    private volatile boolean appFullscreen = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF05060A);
         webView = new WebView(this);
         root.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, windowInsets) -> {
+            int barsAndCutout = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+            Insets insets = windowInsets.getInsets(barsAndCutout);
+            if (appFullscreen || customView != null) root.setPadding(0, 0, 0, 0);
+            else root.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            return new WindowInsetsCompat.Builder(windowInsets).setInsets(barsAndCutout, Insets.NONE).build();
+        });
         setContentView(root);
 
         WebSettings settings = webView.getSettings();
@@ -61,6 +81,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
         webView.setBackgroundColor(0xFF06070B);
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -81,10 +102,7 @@ public class MainActivity extends Activity {
                 customViewCallback = callback;
                 root.removeView(webView);
                 root.addView(view, new FrameLayout.LayoutParams(-1, -1));
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+                setImmersiveFullscreen(true);
             }
 
             @Override
@@ -93,7 +111,7 @@ public class MainActivity extends Activity {
                 root.removeView(customView);
                 customView = null;
                 root.addView(webView, new FrameLayout.LayoutParams(-1, -1));
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                setImmersiveFullscreen(false);
                 if (customViewCallback != null) customViewCallback.onCustomViewHidden();
                 customViewCallback = null;
             }
@@ -104,7 +122,7 @@ public class MainActivity extends Activity {
                 String filename = fileNameFromDisposition(contentDisposition);
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 request.setTitle(filename);
-                request.setDescription("ARY Episode Watcher download");
+                request.setDescription("CineWave download");
                 request.setMimeType(mimeType);
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 String cookie = CookieManager.getInstance().getCookie(url);
@@ -131,8 +149,9 @@ public class MainActivity extends Activity {
                 Python.getInstance().getModule("android_entry").callAttr(
                     "start_server", new File(getFilesDir(), "runtime").getAbsolutePath());
             } catch (Throwable error) {
-                android.util.Log.e("ARY-APK", "Embedded Python backend failed", error);
-                handler.post(() -> Toast.makeText(this, "Python backend failed to start. Check app logs.", Toast.LENGTH_LONG).show());
+                android.util.Log.e("CineWave", "Embedded Python backend startup returned an error", error);
+                // Health polling below determines whether the local service is actually unavailable.
+                // Avoid a false failure toast if the server is already responding.
             }
         });
 
@@ -151,6 +170,55 @@ public class MainActivity extends Activity {
             }
             handler.post(() -> Toast.makeText(this, "Python service did not start. Please reopen the app.", Toast.LENGTH_LONG).show());
         });
+    }
+
+    private void setImmersiveFullscreen(boolean enabled) {
+        appFullscreen = enabled;
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        if (enabled) {
+            controller.setSystemBarsAppearance(0, WindowInsetsControllerCompat.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsControllerCompat.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+            if (root != null) root.setPadding(0, 0, 0, 0);
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars());
+            if (root != null) ViewCompat.requestApplyInsets(root);
+        }
+    }
+
+    private final class AndroidBridge {
+        @JavascriptInterface public void setFullscreen(boolean enabled) {
+            runOnUiThread(() -> setImmersiveFullscreen(enabled));
+        }
+        @JavascriptInterface public void setOrientation(boolean landscape) {
+            runOnUiThread(() -> setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED));
+        }
+        @JavascriptInterface public int getMediaVolume() {
+            AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            return maximum <= 0 ? 0 : Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / maximum);
+        }
+        @JavascriptInterface public void setMediaVolume(int percent) {
+            runOnUiThread(() -> {
+                AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int target = Math.round(Math.max(0, Math.min(100, percent)) * maximum / 100f);
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0);
+            });
+        }
+        @JavascriptInterface public float getScreenBrightness() {
+            float current = getWindow().getAttributes().screenBrightness;
+            if (current >= 0f) return Math.max(0.15f, Math.min(1f, current));
+            try { return Math.max(0.15f, Math.min(1f, Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 200) / 255f)); }
+            catch (Exception ignored) { return 0.8f; }
+        }
+        @JavascriptInterface public void setScreenBrightness(float level) {
+            runOnUiThread(() -> {
+                WindowManager.LayoutParams attributes = getWindow().getAttributes();
+                attributes.screenBrightness = Math.max(0.15f, Math.min(1f, level));
+                getWindow().setAttributes(attributes);
+            });
+        }
     }
 
     private boolean isBackendReady() {
@@ -196,7 +264,7 @@ public class MainActivity extends Activity {
                 if (!name.isEmpty()) return name;
             }
         }
-        return "ary-episode-" + System.currentTimeMillis() + ".mp4";
+        return "cinewave-episode-" + System.currentTimeMillis() + ".mp4";
     }
 
     @Override
