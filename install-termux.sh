@@ -33,7 +33,12 @@ case "\${1:-}" in
   --foreground|-f)
     wake_lock
     trap 'wake_unlock' EXIT INT TERM
-    exec python3 "\$APP_DIR/ary_episode_watcher.py"
+    set +e
+    python3 "\$APP_DIR/ary_episode_watcher.py"
+    rc=\$?
+    wake_unlock
+    trap - EXIT INT TERM
+    exit "\$rc"
     ;;
   --stop)
     if running_pid; then
