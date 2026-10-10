@@ -5,7 +5,7 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 ## Features
 
 - Dynamic ARY Plus series discovery across ARY Plus catalogue genres.
-- No hard-coded series ID or episode ID; series and episodes are discovered at runtime.
+- Dar-E-Nijaat uses a canonical repository mapping of 20 real episode IDs and saved HLS source URLs; other catalogue entries are discovered at runtime.
 - Inspects the HLS master playlist and exposes every advertised resolution.
 - Automatically selects the highest advertised video resolution.
 - Downloads with FFmpeg stream copy; no quality-lowering re-encode.
@@ -14,7 +14,8 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 - Netflix/Prime-style home catalogue with All, Drama, Telefilms, Shows, Movies, Comedy, Romance, Action, Sports, News and metadata-driven genre rows.
 - Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
 - Responsive MX-style player controls with auto-hide UI, tap-to-show controls, double-tap seek, fullscreen, portrait/landscape orientation support where the browser permits it, quality/speed/fit/caption settings, and resume playback.
-- Episode cards provide in-app Stream and Download actions instead of redirecting as the primary action.
+- Episode cards provide prominent in-app Stream and Download buttons; playlist/quality inspection is a secondary action.
+- Stream and download actions use the backend `/api/stream-info` and `/api/download` endpoints; downloads appear in the in-page manager and are saved to the device by tapping **Save file to device**.
 - Browser HLS playback using HLS.js when the source permits browser playback.
 - Manual ARY Digital Live availability check from the website interface whenever you choose.
 - No external AI/API service.
@@ -103,6 +104,8 @@ The app selects the highest HLS resolution, but resolution alone does not guaran
     web/index.html
     requirements.txt
     tests/test_core.py
+    tests/test_dar_e_nijaat.py
+    dar-e-nijaat-all-m3u8.json
     run.sh
     .gitignore
 
