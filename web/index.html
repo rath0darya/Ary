@@ -345,7 +345,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <script>
 const $=id=>document.getElementById(id);
-let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8;
+let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false;
 const categories=[["all","All"],["drama","Drama"],["telefilms","Telefilms"],["shows","Shows"],["movies","Movies"],["series","Series"],["comedy","Comedy"],["romance","Romance"],["action","Action"],["sports","Sports"],["news","News"]];
 
 async function get(path){const r=await fetch(path,{cache:"no-store",headers:{"Accept":"application/json"}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d}
