@@ -3,7 +3,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
         android:allowBackup="false"
-        android:label="ARY Episode Watcher"
+        android:icon="@drawable/cinewave_icon"
+        android:roundIcon="@drawable/cinewave_icon"
+        android:label="CineWave"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
