@@ -656,11 +656,11 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
             "id": "dar-e-nijaat",
             "title": "Dar-E-Nijaat",
             "url": "https://arydigital.tv/drama/dar-e-nijaat/",
-            "image": None,
+            "image": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
             "content_type": "Series",
             "catalogue_genres": ["Drama", "Romance"],
             "genres": ["Drama", "Romance"],
-            "description": "Watch official Dar-E-Nijaat episodes on ARY Digital.",
+            "description": "A drama series. Browse episodes and continue watching from your saved position.",
         }
         with CACHE_LOCK:
             CACHE["series"] = [item]
@@ -1021,7 +1021,7 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     "number": number,
                     "title": f"Dar-E-Nijaat Episode {number}",
                     "date": None,
-                    "thumbnail": None,
+                    "thumbnail": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                     "stream": stream_url,
                     "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/",
                     "official_only": False,
