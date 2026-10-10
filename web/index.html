@@ -340,7 +340,7 @@ document.addEventListener("error",event=>{const img=event.target;if(!(img instan
 function typeOf(x){return x?.content_type||x?.contentType||"Series"}
 function genresOf(x){const g=x?.genres||x?.catalogue_genres||[];return Array.isArray(g)?g.filter(Boolean).map(String):String(g||"").split(/[,|•]/).map(x=>x.trim()).filter(Boolean)}
 function yearOf(x){return x?.year||x?.release_year||x?.releaseYear||""}
-function poster(x){return x?.image||x?.thumbnail||x?.poster||""}
+function poster(x){return x?.image||x?.image_url||x?.thumbnail||x?.thumbnail_url||x?.poster||x?.poster_url||x?.cover||x?.cover_image||x?.backdrop||""}
 function matches(x,cat){const t=typeOf(x),g=genresOf(x).join(" ").toLowerCase();if(cat==="all")return true;if(cat==="drama")return g.includes("drama");if(cat==="telefilms")return t==="Telefilm";if(cat==="shows")return t==="Show"||/tv shows|reality|game show/.test(g);if(cat==="movies")return t==="Movie";if(cat==="series")return t==="Series";return g.includes(cat)}
 function card(x){const p=poster(x);const prog=watchState(x.id);return '<button class="card series-card" data-id="'+esc(x.id)+'"><div class="poster">'+(p?'<img loading="lazy" data-original="'+esc(p)+'" src="'+imageUrl(p)+'" alt="">':'')+'<span class="badge">'+esc(typeOf(x))+'</span><span class="play-mini">▶</span>'+(prog?'<span class="progress"><i style="width:'+Math.min(100,prog.progress||0)+'%"></i></span>':'')+'</div><div class="card-name">'+esc(x.title||"Untitled")+'</div><div class="card-meta">'+esc(yearOf(x)||"")+(genresOf(x).length?" · "+esc(genresOf(x).slice(0,2).join(" · ")):"")+'</div></button>'}
 function renderChips(){$("chips").innerHTML=categories.map(c=>'<button class="chip '+(activeCategory===c[0]?"active":"")+'" onclick="setCategory(\''+c[0]+'\')">'+c[1]+'</button>').join("")}
@@ -380,7 +380,7 @@ function renderEpisodes(){
  for(const e of list){
   const card=document.createElement("article");card.className="ep";
   const thumb=document.createElement("div");thumb.className="ep-thumb";
-  if(e.thumbnail){const img=document.createElement("img");img.loading="lazy";img.dataset.original=e.thumbnail;img.src=imageUrl(e.thumbnail);img.alt="";thumb.appendChild(img)}
+  const thumbUrl=e.thumbnail||e.image||e.image_url||e.poster||e.poster_url||e.thumbnail_url||e.cover||e.cover_image;if(thumbUrl){const img=document.createElement("img");img.loading="lazy";img.dataset.original=thumbUrl;img.src=imageUrl(thumbUrl);img.alt="";thumb.appendChild(img)}
   const num=document.createElement("span");num.className="ep-num";num.textContent=e.number??"Video";thumb.appendChild(num);
   const body=document.createElement("div");body.className="ep-body";
   const title=document.createElement("div");title.className="ep-title";title.textContent=e.title||"Video";
