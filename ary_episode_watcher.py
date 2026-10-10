@@ -1074,6 +1074,83 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                 episodes.append(previous)
                 canonical_ids.add(previous_id)
                 known_numbers.add(previous_number)
+        # IMPORTANT: use the same ARY+ paginated episode API used by the
+        # original web version. The public ARY Digital page can lag behind VOD
+        # publication and often renders only the first 20 episode links.
+        api_added = 0
+        api_seen_ids = {str(item.get("id") or "") for item in episodes}
+        api_seen_numbers = {
+            int(item["number"]) for item in episodes
+            if str(item.get("number", "")).isdigit()
+        }
+        for page_number in range(1, 101):
+            try:
+                payload = api_json(
+                    f"/api/v2/cdn/pg/{quote(str(source_data['seriesId']), safe='')}?page={page_number}&limit=50",
+                    timeout=20,
+                )
+            except Exception as exc:
+                print(f"[DAR-E-NIJAAT] ARY+ episode API page {page_number} failed: {exc}", flush=True)
+                break
+            raw_page = payload.get("episode") if isinstance(payload, dict) else payload
+            if isinstance(raw_page, dict):
+                raw_page = [raw_page]
+            if not isinstance(raw_page, list) or not raw_page:
+                break
+            page_added = 0
+            for raw in raw_page:
+                if not isinstance(raw, dict):
+                    continue
+                normalized = normalise_episode(raw)
+                episode_id = str(normalized.get("id") or "")
+                raw_number = normalized.get("number")
+                try:
+                    episode_number = int(raw_number)
+                except (TypeError, ValueError):
+                    continue
+                # Only trust actual ARY records with a real content ID and a
+                # positive episode number; never fabricate IDs from numbering.
+                if not re.fullmatch(r"[A-Fa-f0-9]{24}", episode_id) or episode_number < 1:
+                    continue
+                if episode_id in api_seen_ids or episode_number in api_seen_numbers:
+                    continue
+                stream_url = (
+                    _media_url(raw.get("videoSource"), "https://arydigital.tv")
+                    or _media_url(raw.get("video_source"), "https://arydigital.tv")
+                    or _media_url(raw.get("streamUrl"), "https://arydigital.tv")
+                    or _media_url(raw.get("stream_url"), "https://arydigital.tv")
+                    or _media_url(raw.get("videoUrl"), "https://arydigital.tv")
+                    or _media_url(raw.get("video_url"), "https://arydigital.tv")
+                    or _media_url(raw.get("source"), "https://arydigital.tv")
+                )
+                episodes.append({
+                    "id": episode_id,
+                    "api_id": episode_id,
+                    "number": episode_number,
+                    "title": normalized.get("title") or f"Dar-E-Nijaat Episode {episode_number}",
+                    "date": normalized.get("date"),
+                    "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
+                    "stream": stream_url,
+                    "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{episode_number}/",
+                    "official_only": False,
+                    "description": "Discovered from the live ARY+ episode API.",
+                    "next_episode_id": raw.get("nextEpId") or raw.get("nextEpisodeId"),
+                    "raw": raw,
+                })
+                api_seen_ids.add(episode_id)
+                api_seen_numbers.add(episode_number)
+                page_added += 1
+                api_added += 1
+            if page_added == 0:
+                break
+            has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
+            total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
+            if has_next is False or (total_pages and page_number >= int(total_pages)):
+                break
+
+        if api_added:
+            print(f"[DAR-E-NIJAAT] ARY+ API discovered {api_added} new episode(s)", flush=True)
+
         series_page_url = "https://arydigital.tv/drama/dar-e-nijaat/"
         candidate_numbers: set[int] = set()
         try:
