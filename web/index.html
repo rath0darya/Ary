@@ -248,20 +248,6 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 </section>
 
 <main>
-<section class="section" id="liveCheckSection">
- <div class="live-check">
-  <div>
-   <div class="eyebrow">ARY DIGITAL LIVE · MANUAL CHECK</div>
-   <h2>Check the live broadcast</h2>
-   <p>Check whenever you choose. Nothing runs in the background and no schedule is created. This checks whether a live HLS playlist is discoverable from the public page.</p>
-   <div id="liveStatus" class="live-status" aria-live="polite">Not checked yet.</div>
-  </div>
-  <div class="live-actions">
-   <button id="liveCheckButton" class="btn primary" onclick="checkLiveNow()">↻ Check now</button><button class="btn live-open" onclick="openLivePlayer()">▶ Watch live here</button>
-   <a class="btn" href="https://live.arydigital.tv/" target="_blank" rel="noopener">Open ARY Live ↗</a>
-  </div>
- </div>
-</section>
 <section id="continueSection" class="section continue" style="display:none"><div class="section-head"><h2 class="title">Continue Watching</h2></div><div id="continueRow" class="content-row"></div></section>
 <section class="section"><div class="section-head"><h2 class="title">Featured Picks</h2><span id="recentCount" class="count"></span></div><div id="recentRow" class="content-row"><div class="loading">Loading…</div></div></section>
 <section id="browse" class="section">
@@ -335,13 +321,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
  <div id="downloadPermission" class="download-item-status">In-page progress is enabled. Tap ♧ to allow browser notifications.</div>
  <div id="downloadList" class="download-list"><div class="download-item-status">No downloads yet.</div></div>
 </section>
-<section id="liveModal" class="live-modal" role="dialog" aria-modal="true" aria-label="ARY Digital Live">
- <div class="live-shell">
-  <div class="live-shell-head"><strong>🔴 ARY Digital Live</strong><span class="spacer"></span><a class="btn" href="https://live.arydigital.tv/" target="_blank" rel="noopener">Open official player ↗</a><button class="pbtn" onclick="closeLivePlayer()" aria-label="Close live player">×</button></div>
-  <iframe id="liveFrame" class="live-frame" title="Official ARY Digital Live player" src="about:blank" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-  <div class="live-shell-note">This embeds the official live page when its security policy allows it. If playback is blocked in the embedded view, use “Open official player”. This is live viewing only; no live recording is started.</div>
- </div>
-</section>
+
 
 <script>
 const $=id=>document.getElementById(id);
@@ -361,7 +341,7 @@ function genresOf(x){const g=x?.genres||x?.catalogue_genres||[];return Array.isA
 function yearOf(x){return x?.year||x?.release_year||x?.releaseYear||""}
 function poster(x){return x?.image||x?.thumbnail||x?.poster||""}
 function matches(x,cat){const t=typeOf(x),g=genresOf(x).join(" ").toLowerCase();if(cat==="all")return true;if(cat==="drama")return g.includes("drama");if(cat==="telefilms")return t==="Telefilm";if(cat==="shows")return t==="Show"||/tv shows|reality|game show/.test(g);if(cat==="movies")return t==="Movie";if(cat==="series")return t==="Series";return g.includes(cat)}
-function card(x){const p=poster(x);const prog=watchState(x.id);return '<button class="card series-card" data-id="'+esc(x.id)+'"><div class="poster">'+(p?'<img loading="lazy" src="'+imageUrl(p)+'" alt="">':'')+'<span class="badge">'+esc(typeOf(x))+'</span><span class="play-mini">▶</span>'+(prog?'<span class="progress"><i style="width:'+Math.min(100,prog.progress||0)+'%"></i></span>':'')+'</div><div class="card-name">'+esc(x.title||"Untitled")+'</div><div class="card-meta">'+esc(yearOf(x)||"")+(genresOf(x).length?" · "+esc(genresOf(x).slice(0,2).join(" · ")):"")+'</div></button>'}
+function card(x){const p=poster(x);const prog=watchState(x.id);return '<button class="card series-card" data-id="'+esc(x.id)+'"><div class="poster">'+(p?'<img loading="lazy" data-original="'+esc(p)+'" src="'+imageUrl(p)+'" alt="">':'')+'<span class="badge">'+esc(typeOf(x))+'</span><span class="play-mini">▶</span>'+(prog?'<span class="progress"><i style="width:'+Math.min(100,prog.progress||0)+'%"></i></span>':'')+'</div><div class="card-name">'+esc(x.title||"Untitled")+'</div><div class="card-meta">'+esc(yearOf(x)||"")+(genresOf(x).length?" · "+esc(genresOf(x).slice(0,2).join(" · ")):"")+'</div></button>'}
 function renderChips(){$("chips").innerHTML=categories.map(c=>'<button class="chip '+(activeCategory===c[0]?"active":"")+'" onclick="setCategory(\''+c[0]+'\')">'+c[1]+'</button>').join("")}
 function buildFilters(){const years=[...new Set(series.map(yearOf).filter(Boolean).map(String))].sort((a,b)=>Number(b)-Number(a));const genres=[...new Set(series.flatMap(genresOf))].sort((a,b)=>a.localeCompare(b));$("yearFilter").innerHTML='<option value="">All years</option>'+years.map(x=>'<option>'+esc(x)+'</option>').join("");$("genreFilter").innerHTML='<option value="">All genres</option>'+genres.map(x=>'<option>'+esc(x)+'</option>').join("")}
 function render(){renderChips();const q=(($("catalogueSearch").value||"")+" "+($("search").value||"")).trim().toLowerCase(),year=$("yearFilter").value,genre=$("genreFilter").value,type=$("typeFilter").value,sort=$("sortFilter").value;let list=series.filter(x=>matches(x,activeCategory)&&(!q||[x.title,typeOf(x),yearOf(x),...genresOf(x),x.description||"",x.cast||""].join(" ").toLowerCase().includes(q))&&(!year||String(yearOf(x))===year)&&(!genre||genresOf(x).includes(genre))&&(!type||typeOf(x)===type));if(sort==="title")list.sort((a,b)=>String(a.title).localeCompare(String(b.title)));if(sort==="title-desc")list.sort((a,b)=>String(b.title).localeCompare(String(a.title)));if(sort==="year-desc")list.sort((a,b)=>Number(yearOf(b)||0)-Number(yearOf(a)||0));if(sort==="year-asc")list.sort((a,b)=>Number(yearOf(a)||0)-Number(yearOf(b)||0));$("catalogueCount").textContent=list.length+" of "+series.length+" titles";const groups=[{name:categories.find(c=>c[0]===activeCategory)?.[1]||"All",items:list}];$("rows").innerHTML=groups.map(g=>g.items.length?'<section><div class="section-head"><h2 class="title">'+esc(g.name)+'</h2><span class="count">'+g.items.length+'</span></div><div class="content-row">'+g.items.map(card).join("")+'</div></section>':'<div class="empty">No titles match these filters.</div>').join("")}
@@ -511,22 +491,10 @@ async function downloadEpisode(id,button){const box=$("status-"+CSS.escape(id));
 function toggleDownloadCenterIfNeeded(){const p=$("downloadCenter");if(!p.classList.contains("open")){p.classList.add("open");$("downloadMini").classList.remove("show")}}
 async function pollDownload(jobId,episodeId,button){try{const response=await get("/api/download/"+encodeURIComponent(jobId));const previous=downloadJobs.get(jobId)||{};const job={...previous,...response.job,title:previous.title||response.job.episode_title||"Episode download",updated:Date.now()};downloadJobs.set(jobId,job);renderDownloadJobs();const box=$("status-"+CSS.escape(episodeId));if(job.state==="completed"){if(box)box.textContent="✓ Download ready · "+formatBytes(job.size)+" · tap Save file in Download manager.";if(button)button.disabled=false;if(!job.notified){job.notified=true;notifyBrowser("Download ready",job.title+" is ready. Open the download manager to save it.");toast("Download ready — tap Save file in Download manager.")}return}else if(job.state==="error"){if(box)box.textContent="Download failed: "+(job.error||"Unknown error");if(button)button.disabled=false;toast("Download failed: "+(job.error||"Unknown error"));return}else{if(box)box.textContent=(job.state==="downloading"?"Downloading":"Preparing")+" · "+formatBytes(job.size)+" · "+(job.speed||"");setTimeout(()=>pollDownload(jobId,episodeId,button),1200)}}catch(e){setTimeout(()=>pollDownload(jobId,episodeId,button),2200)}}
 function resumeDownloadPolling(){for(const j of downloadJobs.values()){if(j&&j.id&&!["completed","error"].includes(j.state)&&!j._resumePending){j._resumePending=true;get("/api/download/"+encodeURIComponent(j.id)).then(d=>{const latest={...j,...d.job,updated:Date.now()};delete latest._resumePending;downloadJobs.set(j.id,latest);renderDownloadJobs();if(!["completed","error"].includes(latest.state))pollDownload(j.id,latest.episode_id||"",null)}).catch(()=>{delete j._resumePending})}}}
-function openLivePlayer(){const modal=$("liveModal");modal.classList.add("open");if($("liveFrame").src==="about:blank")$("liveFrame").src="https://live.arydigital.tv/";document.body.style.overflow="hidden"}
-function closeLivePlayer(){ $("liveModal").classList.remove("open");$("liveFrame").src="about:blank";document.body.style.overflow=$("detail").classList.contains("open")||$("player").classList.contains("open")?"hidden":""}
 function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpisode,v.currentTime||0,false);destroyPlayer();$("player").classList.remove("open","locked","hidden-ui","landscape-fallback");locked=false;orientationFallback=false;clearTimeout(playerHideTimer);try{screen.orientation?.unlock?.()}catch{}$("settings").classList.remove("open");document.body.style.overflow=$("detail").classList.contains("open")?"hidden":""}
 function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow=""}
 function heroPlay(){if(series[0])openSeries(series[0].id)}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
-async function checkLiveNow(){
- const button=$("liveCheckButton"),status=$("liveStatus");
- button.disabled=true;button.textContent="Checking…";status.textContent="Checking ARY Digital Live now. This may take a few seconds.";
- try{
-  const d=await get("/api/live/check");
-  const label=d.available?"LIVE PLAYLIST DETECTED":"LIVE NOT CONFIRMED";
-  status.innerHTML="<strong>"+esc(label)+"</strong><br>Checked: "+esc(d.checked_at||"just now")+"<br>"+esc(d.reason||"No further details.")+(Number.isFinite(d.candidate_count)?"<br>HLS candidates found: "+d.candidate_count:"")+"<br><span>Check result only — recording is not started by this button.</span>";
- }catch(e){status.textContent="Check failed: "+e.message}
- finally{button.disabled=false;button.textContent="↻ Check again"}
-}
 async function updateMetadata(){try{await get("/api/catalogue/metadata?start=1");$("metadataStatus").textContent="Metadata update started…";clearInterval(metadataTimer);metadataTimer=setInterval(async()=>{try{const d=await get("/api/catalogue/metadata");$("metadataStatus").textContent="Metadata "+d.done+"/"+d.total+" · "+d.state;if(d.state==="completed"||d.state==="error"){clearInterval(metadataTimer);await loadSeries(false)}}catch{}},1000)}catch(e){toast(e.message)}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2200)}
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("liveModal").classList.contains("open"))closeLivePlayer()});$("liveModal").addEventListener("click",e=>{if(e.target===$("liveModal"))closeLivePlayer()});
