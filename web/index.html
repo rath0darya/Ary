@@ -439,36 +439,63 @@ function setQualityOptions(){
  const auto=document.createElement("option");auto.value="-1";auto.textContent="Auto / source";q.appendChild(auto);
  (variants||[]).filter(x=>x?.uri).forEach((x,i)=>{const opt=document.createElement("option");opt.value=String(i);opt.textContent=(x.height?x.height+"p":"HLS variant")+(x.width?" · "+x.width+"×"+x.height:"");q.appendChild(opt)});
 }
-function changeQuality(){const i=Number($("quality").value);if(i<0){if(currentEpisode)playEpisode(currentEpisode,0);return}const x=variants[i];if(x?.uri&&currentEpisode)playEpisode(currentEpisode,0,x.uri)}
-function destroyPlayer(){if(hls){hls.destroy();hls=null}const v=$("video");v.pause();v.removeAttribute("src");v.load()}
+function changeQuality(){const i=Number($("quality").value),pos=$("video").currentTime||0;if(!currentEpisode)return;if(i<0){playEpisode(currentEpisode,pos);return}const x=variants[i];if(x?.uri)playEpisode(currentEpisode,pos,x.uri)}
+function setPlaybackSpeed(value){const speed=Number(value)||1;$("video").playbackRate=speed;toast("Playback speed · "+speed+"×");}
+function formatTime(value){if(!Number.isFinite(value)||value<0)return "--:--";const n=Math.floor(value),h=Math.floor(n/3600),m=Math.floor((n%3600)/60),s=n%60;return h?String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"):String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")}
+function updatePlayerProgress(){const v=$("video"),bar=$("seekBar");if(!v||!bar)return;const duration=v.duration;const ratio=Number.isFinite(duration)&&duration>0?v.currentTime/duration:0;if(!seekingTimeline)bar.value=String(Math.round(ratio*1000));bar.style.setProperty("--seek-progress",Math.max(0,Math.min(1,ratio))*100+"%");$("timeLabel").textContent=formatTime(v.currentTime)+" / "+formatTime(duration);$("centerPlay").textContent=v.paused?"▶":"Ⅱ";$("bufferLabel").textContent=v.readyState>=3?"Ready":v.readyState>0?"Buffering…":"Loading…"}
+function seekBy(delta){const v=$("video");if(!v||!Number.isFinite(v.duration))return;v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+delta));showGesture((delta>0?"+":"")+delta+" seconds");updatePlayerProgress();showPlayerControls()}
+function togglePlayback(){const v=$("video");if(v.paused)v.play().catch(()=>{$("playerNote").textContent="Tap Play to start playback."});else v.pause();showPlayerControls()}
+function showGesture(label){const el=$("gestureHud");el.textContent=label;el.classList.add("show");clearTimeout(uiTimer);uiTimer=setTimeout(()=>el.classList.remove("show"),650)}
+function showPlayerControls(){const p=$("player");if(locked)return;p.classList.remove("hidden-ui");clearTimeout(playerHideTimer);if(!$("video").paused&&!$("settings").classList.contains("open"))playerHideTimer=setTimeout(()=>{if(!$("video").paused&&!locked&&!$("settings").classList.contains("open"))p.classList.add("hidden-ui")},3200)}
+function togglePlayerSettings(force){const p=$("settings");const open=typeof force==="boolean"?force:!p.classList.contains("open");p.classList.toggle("open",open);if(open){$("player").classList.remove("hidden-ui");clearTimeout(playerHideTimer)}else showPlayerControls()}
+function togglePlayerLock(){locked=!locked;const p=$("player");p.classList.toggle("locked",locked);$("lockBtn").setAttribute("aria-label",locked?"Unlock player controls":"Lock player controls");$("lockBadge").setAttribute("aria-label",locked?"Unlock player controls":"Lock player controls");$("lockBadge").textContent="🔒";if(locked){$("settings").classList.remove("open");p.classList.remove("hidden-ui");clearTimeout(playerHideTimer)}else showPlayerControls()}
+async function toggleFullscreen(){const p=$("player");try{if(document.fullscreenElement){await document.exitFullscreen()}else if(p.requestFullscreen){await p.requestFullscreen();if(screen.orientation?.lock){try{await screen.orientation.lock("landscape");orientationFallback=false;p.classList.remove("landscape-fallback")}catch{}}}}catch{toast("Fullscreen is not available in this browser.")}}
+async function toggleOrientation(){const p=$("player"),btn=$("orientationBtn");if(orientationFallback){orientationFallback=false;p.classList.remove("landscape-fallback");try{screen.orientation?.unlock?.()}catch{}btn.textContent="↻ Landscape";return}try{if(screen.orientation?.lock){await screen.orientation.lock("landscape");orientationFallback=false;p.classList.remove("landscape-fallback")}else throw Error("orientation lock unsupported");btn.textContent="↻ Portrait"}catch{orientationFallback=true;p.classList.add("landscape-fallback");btn.textContent="↻ Portrait"}}
+function seekPreview(time,clientX){const preview=$("seekPreview"),pv=$("previewVideo"),v=$("video");if(!Number.isFinite(v.duration)||v.duration<=0)return;const t=Math.max(0,Math.min(v.duration,time));$("previewTime").textContent=formatTime(t);const bar=$("seekBar"),rect=bar.getBoundingClientRect();const x=typeof clientX==="number"?clientX:rect.left+(t/v.duration)*rect.width;const pct=Math.max(8,Math.min(92,((x-rect.left)/Math.max(1,rect.width))*100));preview.style.setProperty("--preview-x",pct+"%");preview.classList.add("show");if(pv.readyState>=1&&Math.abs(pv.currentTime-t)>.45){try{pv.currentTime=t}catch{}}}
+function hideSeekPreview(){$("seekPreview").classList.remove("show")}
+function setupSeekPreview(source){const pv=$("previewVideo");if(previewHls){previewHls.destroy();previewHls=null}pv.pause();pv.removeAttribute("src");pv.load();if(/\.mp4(?:$|\?)/i.test(source)){pv.src=source;return}if(window.Hls&&Hls.isSupported()){previewHls=new Hls({enableWorker:true,lowLatencyMode:false,maxBufferLength:3,maxMaxBufferLength:6,backBufferLength:0});previewHls.loadSource(source);previewHls.attachMedia(pv)}else if(pv.canPlayType("application/vnd.apple.mpegurl"))pv.src=source}
+function destroyPlayer(){if(hls){hls.destroy();hls=null}if(previewHls){previewHls.destroy();previewHls=null}const pv=$("previewVideo");if(pv){pv.pause();pv.removeAttribute("src");pv.load()}const v=$("video");v.pause();v.removeAttribute("src");v.load();hideSeekPreview()}
 async function playEpisode(e,pos=0,selectedSource=null){
  currentEpisode=e;currentIndex=episodes.findIndex(x=>String(x.id)===String(e.id));
- $("player").classList.add("open");document.body.style.overflow="hidden";
- $("playerTitle").textContent=(currentSeries?.title||"ARY+")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+(e.title||"Video");
- $("playerNote").textContent="Finding available playlist…";destroyPlayer();
+ const p=$("player");p.classList.add("open");p.classList.remove("locked","hidden-ui","landscape-fallback");locked=false;orientationFallback=false;document.body.style.overflow="hidden";$("settings").classList.remove("open");
+ $("playerTitle").textContent=(currentSeries?.title||"Video")+" · "+(e.number!=null?"EP "+e.number+" · ":"")+(e.title||"Video");
+ $("playerNote").textContent="Finding available playlist…";destroyPlayer();$("playbackSpeed").value="1";
  try{
   const d=await get("/api/stream-info?series="+encodeURIComponent(currentSeries.id)+"&episode="+encodeURIComponent(e.id));
   variants=(d.stream?.variants||[]).filter(x=>x?.uri);
   const source=selectedSource||d.stream?.source||d.stream?.best?.uri;
   if(!source)throw Error("No accessible stream or playlist is available.");
-  setQualityOptions();attachStream(source,pos);
+  setQualityOptions();attachStream(source,pos);setupSeekPreview(source);showPlayerControls();
  }catch(err){$("playerNote").textContent=err.message}
 }
 function attachStream(source,pos){
- const v=$("video");v.controls=true;v.playsInline=true;
- v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=pos;v.play().catch(()=>{$("playerNote").textContent="Press Play to start."})};
- v.ontimeupdate=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime)};
- v.onplay=()=>{$("playerNote").textContent="Streaming in page."};
- v.onpause=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime,false)};
- v.onended=()=>{if(currentEpisode)saveWatch(currentEpisode,v.duration,true)};
- if(/\.mp4(?:$|\?)/i.test(source)){v.src=source;$("playerNote").textContent="Direct video source";return}
+ const v=$("video");v.controls=false;v.playsInline=true;v.playbackRate=Number($("playbackSpeed").value)||1;
+ v.onloadedmetadata=()=>{if(pos>0&&pos<v.duration)v.currentTime=Math.min(pos,v.duration-.1);updatePlayerProgress();v.play().catch(()=>{$("playerNote").textContent="Tap Play to start playback."})};
+ v.ontimeupdate=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime);updatePlayerProgress()};
+ v.onprogress=updatePlayerProgress;v.oncanplay=updatePlayerProgress;
+ v.onplay=()=>{$("playerNote").textContent="Playing";$("centerPlay").textContent="Ⅱ";showPlayerControls()};
+ v.onpause=()=>{if(currentEpisode)saveWatch(currentEpisode,v.currentTime,false);$("centerPlay").textContent="▶";clearTimeout(playerHideTimer);updatePlayerProgress()};
+ v.onended=()=>{if(currentEpisode)saveWatch(currentEpisode,v.duration,true);showPlayerControls()};
+ if(/\.mp4(?:$|\?)/i.test(source)){v.src=source;$("playerNote").textContent="Video ready";return}
  if(window.Hls&&Hls.isSupported()){
   hls=new Hls({enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,backBufferLength:30});
-  hls.on(Hls.Events.ERROR,(_,d)=>{if(!d?.fatal)return;if(d.type===Hls.ErrorTypes.NETWORK_ERROR){$("playerNote").textContent="Network error · retrying";hls.startLoad()}else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){$("playerNote").textContent="Recovering media…";hls.recoverMediaError()}else $("playerNote").textContent="HLS playback failed"});
-  hls.on(Hls.Events.MANIFEST_PARSED,()=>{$("playerNote").textContent="HLS ready · use video controls";if(pos>0&&v.duration>pos)v.currentTime=pos;v.play().catch(()=>{})});
+  hls.on(Hls.Events.ERROR,(_,d)=>{if(!d?.fatal)return;if(d.type===Hls.ErrorTypes.NETWORK_ERROR){$("playerNote").textContent="Network issue · reconnecting";hls.startLoad()}else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){$("playerNote").textContent="Recovering video…";hls.recoverMediaError()}else $("playerNote").textContent="Playback failed"});
+  hls.on(Hls.Events.MANIFEST_PARSED,()=>{$("playerNote").textContent="Playing";if(pos>0&&v.duration>pos)v.currentTime=pos;v.play().catch(()=>{})});
   hls.loadSource(source);hls.attachMedia(v);
  }else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=source}
  else throw Error("This browser cannot play HLS playlists.");
+}
+function bindPlayerControls(){
+ const bar=$("seekBar"),stage=$("videoStage"),v=$("video");
+ bar.addEventListener("input",()=>{seekingTimeline=true;const t=(Number(bar.value)/1000)*(Number.isFinite(v.duration)?v.duration:0);bar.style.setProperty("--seek-progress",bar.value/10+"%");$("timeLabel").textContent=formatTime(t)+" / "+formatTime(v.duration);seekPreview(t)});
+ bar.addEventListener("pointermove",e=>{if(Number.isFinite(v.duration)&&v.duration>0){const r=bar.getBoundingClientRect();seekPreview(((e.clientX-r.left)/r.width)*v.duration,e.clientX)}});
+ bar.addEventListener("pointerdown",()=>{seekingTimeline=true;showPlayerControls()});
+ bar.addEventListener("change",()=>{if(Number.isFinite(v.duration))v.currentTime=(Number(bar.value)/1000)*v.duration;seekingTimeline=false;hideSeekPreview();updatePlayerProgress()});
+ bar.addEventListener("pointerup",()=>{seekingTimeline=false;hideSeekPreview()});
+ bar.addEventListener("pointerleave",()=>{if(!seekingTimeline)hideSeekPreview()});
+ stage.addEventListener("pointerup",e=>{if(locked)return;if(e.target.closest("button,.seek-preview"))return;const now=Date.now(),rect=stage.getBoundingClientRect(),x=e.clientX-rect.left,side=x<rect.width*.36?"left":x>rect.width*.64?"right":"center";if(stageTapTimer&&now-lastStageTap.time<330&&side===lastStageTap.side){clearTimeout(stageTapTimer);stageTapTimer=0;if(side==="left")seekBy(-10);else if(side==="right")seekBy(10);else togglePlayback();lastStageTap={time:0,side:null};return}clearTimeout(stageTapTimer);lastStageTap={time:now,side};stageTapTimer=setTimeout(()=>{stageTapTimer=0;if(locked)return;if(side==="center"){if($("player").classList.contains("hidden-ui"))showPlayerControls();else if($("video").paused)togglePlayback();else showPlayerControls()}else showPlayerControls()},330)});
+ $("player").addEventListener("pointermove",()=>{if(!locked)showPlayerControls()});
+ document.addEventListener("fullscreenchange",()=>{if(document.fullscreenElement){$("player").classList.remove("landscape-fallback");orientationFallback=false}});
 }
 function downloadCurrent(){if(currentEpisode)downloadEpisode(currentEpisode.id)}
 const DOWNLOAD_JOBS_KEY="ary-download-jobs-v1";const downloadJobs=new Map((()=>{try{return JSON.parse(localStorage.getItem(DOWNLOAD_JOBS_KEY)||"[]")}catch{return []}})().filter(j=>j&&j.id).map(j=>[j.id,j]));let notificationRegistration=null;if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").then(reg=>{notificationRegistration=reg}).catch(()=>{});}
