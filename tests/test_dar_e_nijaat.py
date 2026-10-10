@@ -2,7 +2,12 @@ import json
 import unittest
 from unittest.mock import patch
 
-from ary_episode_watcher import APP_DIR, CACHE, catalogue
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from ary_episode_watcher import (
+    APP_DIR, CACHE, catalogue, _is_episode_auto_check_window, _is_vod_storage_url,
+)
 
 
 class DarENijaatCatalogueTests(unittest.TestCase):
@@ -37,6 +42,19 @@ class DarENijaatCatalogueTests(unittest.TestCase):
                 self.assertEqual(backend_item["api_id"], item["id"])
                 self.assertEqual(backend_item["stream"], item["m3u8"])
 
+
+    def test_auto_detection_only_runs_after_release_window_on_friday_and_saturday(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        self.assertFalse(_is_episode_auto_check_window(datetime(2026, 10, 9, 21, 14, tzinfo=ist)))
+        self.assertTrue(_is_episode_auto_check_window(datetime(2026, 10, 9, 21, 15, tzinfo=ist)))
+        self.assertTrue(_is_episode_auto_check_window(datetime(2026, 10, 10, 22, 0, tzinfo=ist)))
+        self.assertFalse(_is_episode_auto_check_window(datetime(2026, 10, 11, 22, 0, tzinfo=ist)))
+
+    def test_only_vod_aryzap_urls_are_accepted_as_episode_storage(self):
+        self.assertTrue(_is_vod_storage_url("https://vod.aryzap.com/path/master.m3u8"))
+        self.assertTrue(_is_vod_storage_url("https://cdn.vod.aryzap.com/path/master.m3u8"))
+        self.assertFalse(_is_vod_storage_url("https://live.arydigital.tv/live/master.m3u8"))
+        self.assertFalse(_is_vod_storage_url("http://vod.aryzap.com/path/master.m3u8"))
 
     def test_live_ary_api_adds_episode_beyond_twenty(self):
         CACHE.pop('episodes:dar-e-nijaat', None)
