@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -56,17 +58,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           mkdir -p Download
           cp android/app/build/outputs/apk/debug/app-debug.apk Download/CineWave.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Publish on top of the latest main to avoid non-fast-forward failures
+          # when another commit lands while the APK is building.
+          git fetch origin main
+          git switch -C main origin/main
           git add Download/CineWave.apk
           if ! git diff --cached --quiet; then
-            git commit -m "Publish CineWave APK from build ${GITHUB_RUN_NUMBER}"
-            git push origin HEAD:main
+            git commit -m "Publish CineWave APK from build ${GITHUB_RUN_NUMBER} attempt ${GITHUB_RUN_ATTEMPT}"
+            git push origin main
           fi
-          TAG="discovery-mode-${GITHUB_RUN_NUMBER}"
+
+          # Include the run ID and attempt so re-runs never collide with an existing tag.
+          TAG="cinewave-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
           gh release create "$TAG" Download/CineWave.apk \
-            --title "CineWave Discovery Mode ${GITHUB_RUN_NUMBER}" \
-            --notes "Standalone Android APK with full ARY catalogue discovery mode. Built from main commit ${GITHUB_SHA}." \
+            --title "CineWave ${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})" \
+            --notes "Standalone Android APK built from source commit ${GITHUB_SHA}. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}." \
             --latest
