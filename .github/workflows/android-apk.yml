@@ -59,8 +59,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p Download
-          cp android/app/build/outputs/apk/debug/app-debug.apk Download/CineWave.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -68,6 +66,8 @@ jobs:
           # when another commit lands while the APK is building.
           git fetch origin main
           git switch -C main origin/main
+          mkdir -p Download
+          cp android/app/build/outputs/apk/debug/app-debug.apk Download/CineWave.apk
           git add Download/CineWave.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish CineWave APK from build ${GITHUB_RUN_NUMBER} attempt ${GITHUB_RUN_ATTEMPT}"
