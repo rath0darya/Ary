@@ -666,7 +666,7 @@ def _catalogue_heading(text: str) -> str:
 def discover_series(force: bool = False) -> list[dict[str, Any]]:
     # This installation is intentionally focused on Dar-E-Nijaat rather than
     # the full ARY+ catalogue. Official ARY Digital pages are the source of truth.
-    if os.environ.get("ARY_SERIES_MODE", "dar-e-nijaat").strip().lower() == "dar-e-nijaat":
+    if os.environ.get("ARY_SERIES_MODE", "discovery").strip().lower() == "dar-e-nijaat":
         item = {
             "id": "dar-e-nijaat",
             "title": "Dar-E-Nijaat",
