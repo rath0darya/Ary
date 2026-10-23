@@ -241,6 +241,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
     <button onclick="setCategory('telefilms')">Telefilms</button>
     <button onclick="setCategory('shows')">Shows</button>
     <button onclick="setCategory('movies')">Movies</button>
+    <button onclick="discoveryMode()" title="Discover new titles and episodes">Discover</button>
   </nav>
   <div class="top-actions">
     <input id="search" class="search" placeholder="Search titles, genres, years…" oninput="render()">
@@ -349,6 +350,7 @@ function clearFilters(){$("catalogueSearch").value="";$("search").value="";$("ye
 function scrollHome(){scrollTo({top:0,behavior:"smooth"})}
 async function loadSeries(refresh=false){const cached=readSessionCache(SERIES_CACHE_KEY);if(!refresh&&!series.length&&Array.isArray(cached)){series=cached;buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0]);}try{const d=await get("/api/series"+(refresh?"?refresh=1":""));series=Array.isArray(d.series)?d.series:[];writeSessionCache(SERIES_CACHE_KEY,series);buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0])}catch(e){if(series.length){toast("Connection paused · showing saved catalogue")}else $("rows").innerHTML='<div class="empty">Catalogue unavailable: '+esc(e.message)+'</div>'}}
 async function refreshCatalogue(){await loadSeries(true);toast("Catalogue refreshed")}
+ async function discoveryMode(){const buttons=[...document.querySelectorAll("button")].filter(x=>x.textContent.trim()==="Discover"||x.textContent.trim()==="⌕Discover");buttons.forEach(x=>{x.disabled=true;x.textContent="Discovering…"});try{await loadSeries(true);toast("Discovery complete · "+series.length+" titles found")}finally{buttons.forEach(x=>{x.disabled=false;x.textContent=x.closest(".mobile-nav")?"⌕Discover":"Discover"})}}
 function setHero(x){$("heroTitle").textContent=x.title||"Discover titles";$("heroMeta").innerHTML='<span class="pill">'+esc(typeOf(x))+'</span>'+(yearOf(x)?'<span class="pill">'+esc(yearOf(x))+'</span>':'')+genresOf(x).slice(0,3).map(g=>'<span class="pill">'+esc(g)+'</span>').join("");$("heroDesc").textContent=cleanUiText(x.description||"Browse the collection, choose a title and play available episodes or direct videos.");setBackdrop($("hero"),poster(x))}
 function renderRecent(){const items=series.slice(0,24);$("recentCount").textContent=items.length+" titles";$("recentRow").innerHTML=items.length?items.map(card).join(""):'<div class="empty">No catalogue yet.</div>'}
 function watchKey(id){return"ary-watch:"+id}
@@ -541,6 +543,7 @@ loadSeries();
  <button onclick="scrollHome()"><b>⌂</b>Home</button>
  <button onclick="document.getElementById('rows').scrollIntoView({behavior:'smooth'})"><b>◈</b>Library</button>
  <button onclick="setCategory('series')"><b>▶</b>Series</button>
+ <button onclick="discoveryMode()"><b>⌕</b>Discover</button>
  <button onclick="refreshCatalogue()"><b>↻</b>Refresh</button>
 </nav>
 </body>
