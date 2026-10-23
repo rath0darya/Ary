@@ -13,7 +13,7 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: cinewave-apk-${{ github.ref }}
@@ -51,3 +51,22 @@ jobs:
           name: cinewave-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+
+      - name: Publish APK to repository Download folder and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p Download
+          cp android/app/build/outputs/apk/debug/app-debug.apk Download/CineWave.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Download/CineWave.apk
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish CineWave APK from build ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:main
+          fi
+          TAG="discovery-mode-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" Download/CineWave.apk \
+            --title "CineWave Discovery Mode ${GITHUB_RUN_NUMBER}" \
+            --notes "Standalone Android APK with full ARY catalogue discovery mode. Built from main commit ${GITHUB_SHA}." \
+            --latest
