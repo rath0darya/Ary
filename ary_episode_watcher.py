@@ -119,12 +119,12 @@ def _seed_series() -> dict[str, Any]:
     return {
         "id": "dar-e-nijaat",
         "title": "Dar-E-Nijaat",
-        "url": "https://arydigital.tv/drama/dar-e-nijaat/",
+        "url": "https://aryplus.tv/title/6a57868b5bf57c474cc00a50",
         "image": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
         "content_type": "Series",
         "catalogue_genres": ["Drama", "Romance"],
         "genres": ["Drama", "Romance"],
-        "description": "A drama series. Browse episodes and continue watching from your saved position.",
+        "description": "A drama series with direct in-app VOD playback where ARY provides a stream.",
     }
 
 
@@ -1065,15 +1065,14 @@ def _resolve_vod_stream(episode_id: str) -> str | None:
     """Resolve an episode ID through ARY's VOD episode endpoint."""
     try:
         payload = api_json("/api/cdn/ep/" + quote(episode_id, safe=""), timeout=20)
-        source = _find_video_source(payload)
-        return source if _is_vod_storage_url(source) else None
+        return _find_vod_stream(payload)
     except Exception as exc:
         print(f"[DAR-E-NIJAAT] VOD source not ready for {episode_id}: {exc}", flush=True)
         return None
 
 
 def _vod_episode_id(item: dict[str, Any], fallback: str = "") -> str:
-    """Use the VOD media ID embedded in ARY's official watch route when present."""
+    """Use the VOD media ID embedded in ARY+'s API watch route when present."""
     for key in ("watchUrl", "watch_url", "videoUrl", "video_url", "url"):
         value = item.get(key)
         if not isinstance(value, str):
@@ -1084,16 +1083,54 @@ def _vod_episode_id(item: dict[str, Any], fallback: str = "") -> str:
     return fallback
 
 
-def _official_watch_url(item: dict[str, Any], fallback: str) -> str:
-    """Keep only official ARY playback routes from catalogue metadata."""
-    value = item.get("watchUrl") or item.get("watch_url")
-    if not isinstance(value, str):
-        return fallback
-    url = urljoin("https://aryplus.tv/", html.unescape(value).strip())
-    parsed = urlparse(url)
-    if parsed.scheme == "https" and parsed.hostname in {"aryplus.tv", "www.aryplus.tv"}:
-        return url
-    return fallback
+
+def _find_vod_stream(value: Any) -> str | None:
+    """Find an explicit direct HLS/MP4 URL in an ARY VOD API record."""
+    candidates: list[str] = []
+    def walk(node: Any) -> None:
+        if isinstance(node, str):
+            candidate = html.unescape(node).strip().replace("\\/", "/")
+            if candidate.startswith("//"):
+                candidate = "https:" + candidate
+            if candidate.startswith(("https://", "http://")):
+                parsed = urlparse(candidate)
+                if parsed.path.lower().endswith((".m3u8", ".mp4")) and _is_vod_storage_url(candidate):
+                    candidates.append(candidate)
+        elif isinstance(node, dict):
+            for child in node.values():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+    walk(value)
+    return candidates[0] if candidates else None
+
+
+def _sanitize_discovered_episode(item: dict[str, Any]) -> dict[str, Any]:
+    """Strip legacy page links and retain only verified direct VOD sources."""
+    episode = dict(item)
+    raw = episode.get("raw") if isinstance(episode.get("raw"), dict) else {}
+    vod_id = _vod_episode_id(raw, str(episode.get("api_id") or episode.get("id") or ""))
+    stream = episode.get("stream")
+    if not _is_vod_storage_url(stream):
+        stream = _find_vod_stream(raw)
+    episode.pop("official_url", None)
+    episode.pop("official_only", None)
+    episode["api_id"] = vod_id
+    episode["stream"] = stream
+    episode["direct_available"] = bool(stream)
+    return episode
+
+
+def _sanitize_cached_catalogue(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    cleaned = []
+    for item in items:
+        try:
+            number = int(item.get("number") or 0)
+        except (TypeError, ValueError):
+            number = 0
+        cleaned.append(_sanitize_discovered_episode(item) if number > 20 else item)
+    return cleaned
 
 
 def _is_episode_auto_check_window(now: datetime | None = None) -> bool:
@@ -1151,9 +1188,8 @@ def _canonical_dar_episodes() -> list[dict[str, Any]]:
                 "date": None,
                 "thumbnail": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                 "stream": stream_url,
-                "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/",
-                "official_only": False,
-                "description": "Verified saved HLS source; new episodes are checked against the official ARY episode guide.",
+                "direct_available": True,
+                "description": "Verified saved HLS source; newer episodes are checked through ARY+'s VOD API.",
                 "next_episode_id": None,
                 "raw": {"source": "dar-e-nijaat-all-m3u8.json", "episode": number},
             })
@@ -1166,6 +1202,9 @@ def episode_catalogue_snapshot(series_id: str, refresh: bool = False) -> dict[st
     key = _series_key(series_id)
     with CACHE_LOCK:
         episodes = list(CACHE.get(key) or [])
+        if series_id.lower() in DAR_E_NIJAAT_IDS and episodes:
+            episodes = _sanitize_cached_catalogue(episodes)
+            CACHE[key] = episodes
         if series_id.lower() in DAR_E_NIJAAT_IDS and not episodes:
             episodes = _canonical_dar_episodes()
             CACHE[key] = episodes
@@ -1211,50 +1250,36 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
         raise ValueError("series is required")
     key = _series_key(series_id)
 
-    # Keep verified episode IDs/HLS sources as the offline baseline, but refresh
-    # the official ARY episode guide so newly published episodes are discovered.
+    # Preserve the verified local HLS baseline; discover newer media only from
+    # ARY+'s VOD API and never route users to ARY Digital episode pages.
     if series_id.lower() in DAR_E_NIJAAT_IDS:
         source_data = json.loads((APP_DIR / "dar-e-nijaat-all-m3u8.json").read_text(encoding="utf-8"))
         episodes = _canonical_dar_episodes()
-
-        # Cache the live check for five minutes to avoid hammering ARY. A forced
-        # refresh bypasses this window; if ARY is temporarily unavailable, keep
-        # the known-good episodes and try again on the next refresh.
         with CACHE_LOCK:
             cached = CACHE.get(key)
             checked_at = float(CACHE.get("dar_e_nijaat_checked_at", 0) or 0)
             if not force and cached and time.time() - checked_at < 300:
-                return cached
-
-        known_numbers = {
-            int(item["number"]) for item in episodes
-            if str(item.get("number", "")).isdigit()
-        }
-        # Preserve previously discovered episodes across refreshes/restarts,
-        # even if ARY's page is temporarily unavailable during this check.
-        with CACHE_LOCK:
+                cleaned = _sanitize_cached_catalogue(cached)
+                CACHE[key] = cleaned
+                return cleaned
             previous_episodes = list(CACHE.get(key, []) or [])
-        canonical_ids = {str(item["id"]) for item in episodes}
+
+        known_ids = {str(item.get("id") or "") for item in episodes}
+        known_numbers = {int(item["number"]) for item in episodes}
         for previous in previous_episodes:
-            previous_id = str(previous.get("id") or "")
             try:
-                previous_number = int(previous.get("number"))
+                number = int(previous.get("number"))
             except (TypeError, ValueError):
                 continue
-            if previous_id and previous_id not in canonical_ids and previous_number not in known_numbers:
-                episodes.append(previous)
-                canonical_ids.add(previous_id)
-                known_numbers.add(previous_number)
-        # IMPORTANT: use the same ARY+ paginated episode API used by the
-        # original web version. The public ARY Digital page can lag behind VOD
-        # publication and often renders only the first 20 episode links.
+            episode_id = str(previous.get("id") or "")
+            if episode_id and episode_id not in known_ids and number not in known_numbers:
+                episodes.append(_sanitize_discovered_episode(previous))
+                known_ids.add(episode_id)
+                known_numbers.add(number)
+
+        api_error: Exception | None = None
+        page_signatures: set[tuple[str, ...]] = set()
         api_added = 0
-        api_seen_ids = {str(item.get("id") or "") for item in episodes}
-        api_seen_numbers = {
-            int(item["number"]) for item in episodes
-            if str(item.get("number", "")).isdigit()
-        }
-        api_page_signatures: set[tuple[str, ...]] = set()
         for page_number in range(1, 101):
             try:
                 payload = api_json(
@@ -1262,103 +1287,38 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     timeout=20,
                 )
             except Exception as exc:
-                print(f"[DAR-E-NIJAAT] ARY+ episode API page {page_number} failed: {exc}", flush=True)
+                api_error = exc
+                print(f"[DAR-E-NIJAAT] ARY+ VOD catalogue page {page_number} failed: {exc}", flush=True)
                 break
             raw_page = payload.get("episode") if isinstance(payload, dict) else payload
             if isinstance(raw_page, dict):
                 raw_page = [raw_page]
             if not isinstance(raw_page, list) or not raw_page:
                 break
-            page_signature = tuple(
+            signature = tuple(
                 str(normalise_episode(raw).get("id") or "")
                 for raw in raw_page if isinstance(raw, dict)
             )
-            if page_signature in api_page_signatures:
+            if signature in page_signatures:
                 break
-            api_page_signatures.add(page_signature)
+            page_signatures.add(signature)
+
             for raw in raw_page:
                 if not isinstance(raw, dict):
                     continue
                 normalized = normalise_episode(raw)
                 episode_id = str(normalized.get("id") or "")
-                raw_number = normalized.get("number")
-                try:
-                    episode_number = int(raw_number)
-                except (TypeError, ValueError):
-                    continue
-                # Only trust actual ARY records with a real content ID and a
-                # positive episode number; never fabricate IDs from numbering.
-                if not re.fullmatch(r"[A-Fa-f0-9]{24}", episode_id) or episode_number < 1:
-                    continue
-                if episode_id in api_seen_ids or episode_number in api_seen_numbers:
-                    continue
-                stream_url = next((candidate for candidate in (
-                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("video_source"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("stream_url"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("source"), "https://vod.aryzap.com/"),
-                ) if _is_vod_storage_url(candidate)), None)
-                vod_id = _vod_episode_id(raw, episode_id)
-                if not stream_url:
-                    stream_url = _resolve_vod_stream(vod_id)
-                episodes.append({
-                    "id": episode_id,
-                    "api_id": vod_id,
-                    "number": episode_number,
-                    "title": normalized.get("title") or f"Dar-E-Nijaat Episode {episode_number}",
-                    "date": normalized.get("date"),
-                    "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
-                    "stream": stream_url,
-                    "official_url": _official_watch_url(raw, f"https://arydigital.tv/drama/dar-e-nijaat/episode-{episode_number}/"),
-                    "official_only": not bool(stream_url),
-                    "description": "Discovered from the live ARY+ episode API.",
-                    "next_episode_id": raw.get("nextEpId") or raw.get("nextEpisodeId"),
-                    "raw": raw,
-                })
-                api_seen_ids.add(episode_id)
-                api_seen_numbers.add(episode_number)
-                api_added += 1
-            has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
-            total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
-            if has_next is False or (total_pages and page_number >= int(total_pages)):
-                break
-
-        if api_added:
-            print(f"[DAR-E-NIJAAT] ARY+ API discovered {api_added} new episode(s)", flush=True)
-        # Keep the HTML fallback in sync so it cannot add duplicate episode numbers.
-        known_numbers.update(api_seen_numbers)
-
-        series_page_url = "https://arydigital.tv/drama/dar-e-nijaat/"
-        candidate_numbers: set[int] = set()
-        try:
-            series_page = http_text(series_page_url, {"Referer": "https://arydigital.tv/"}, timeout=20)
-            for match in re.finditer(r"(?:episode[-/](\d+))", html.unescape(series_page), re.I):
-                candidate_numbers.add(int(match.group(1)))
-            # The current ARY Digital episode guide embeds structured records
-            # (including recent episodes) directly in its page. The older ARY+
-            # pagination API can reject unauthenticated calls, so consume this
-            # official page as the discovery source and retain canonical HLS
-            # entries when the page has no direct media URL.
-            for raw in _extract_episode_catalogue(series_page, source_data["seriesId"]):
-                normalized = normalise_episode(raw)
                 try:
                     number = int(normalized.get("number"))
                 except (TypeError, ValueError):
                     continue
-                raw_id = str(normalized.get("id") or "").strip()
-                if number <= 20 or number in known_numbers or not raw_id:
+                if not re.fullmatch(r"[A-Fa-f0-9]{24}", episode_id) or number < 1:
                     continue
-                episode_url = f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/"
-                stream_url = next((candidate for candidate in (
-                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
-                ) if _is_vod_storage_url(candidate)), None)
-                vod_id = _vod_episode_id(raw, raw_id)
-                episode_id = f"arydigital-{raw_id}"
+                if episode_id in known_ids or number in known_numbers:
+                    continue
+
+                vod_id = _vod_episode_id(raw, episode_id)
+                stream_url = _find_vod_stream(raw) or _resolve_vod_stream(vod_id)
                 episodes.append({
                     "id": episode_id,
                     "api_id": vod_id,
@@ -1367,99 +1327,28 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     "date": normalized.get("date"),
                     "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                     "stream": stream_url,
-                    "official_url": _official_watch_url(raw, episode_url),
-                    "official_only": not bool(stream_url),
-                    "description": "Latest episode listed on the official ARY Digital episode guide.",
-                    "next_episode_id": None,
+                    "direct_available": bool(stream_url),
+                    "description": "Discovered from ARY+'s VOD catalogue.",
+                    "next_episode_id": raw.get("nextEpId") or raw.get("nextEpisodeId"),
                     "raw": raw,
                 })
+                known_ids.add(episode_id)
                 known_numbers.add(number)
-                api_seen_ids.add(episode_id)
-                api_seen_numbers.add(number)
-        except Exception as exc:
-            print("[DAR-E-NIJAAT] Official episode guide refresh failed:", exc, flush=True)
+                api_added += 1
 
-        # The guide can lag behind a fresh upload. Probe the next three official
-        # episode URLs as well; only accept a candidate when its page contains a
-        # real ARY episode record with a genuine content ID.
-        next_number = max(known_numbers or {0}) + 1
-        candidate_numbers.update(range(next_number, next_number + 4))
-        additions: list[dict[str, Any]] = []
-        seen_ids = {str(item["id"]) for item in episodes}
-        for number in sorted(candidate_numbers):
-            if number in known_numbers:
-                continue
-            episode_url = f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/"
-            try:
-                page = http_text(episode_url, {"Referer": series_page_url}, timeout=15)
-            except Exception:
-                continue
-
-            raw_items = _extract_episode_catalogue(page, source_data["seriesId"])
-            if not raw_items:
-                for endpoint in _episode_api_candidates(page, source_data["seriesId"]):
-                    try:
-                        payload = api_json(endpoint, timeout=12)
-                        raw_items.extend(_collect_episode_dicts(payload, source_data["seriesId"]))
-                        if raw_items:
-                            break
-                    except Exception:
-                        continue
-
-            for raw in raw_items:
-                normalized = normalise_episode(raw)
-                raw_number = normalized.get("number")
-                try:
-                    episode_number = int(raw_number) if raw_number is not None else number
-                except (TypeError, ValueError):
-                    episode_number = number
-                episode_id = str(normalized.get("id") or "")
-                # Never invent IDs or streams from the episode number alone.
-                if episode_number != number or not re.fullmatch(r"[A-Fa-f0-9]{24}", episode_id):
-                    continue
-                if episode_id in seen_ids:
-                    continue
-                stream_url = next((candidate for candidate in (
-                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("video_source"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("stream_url"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
-                    _media_url(raw.get("source"), "https://vod.aryzap.com/"),
-                ) if _is_vod_storage_url(candidate)), None)
-                vod_id = _vod_episode_id(raw, episode_id)
-                if not stream_url:
-                    stream_url = _resolve_vod_stream(vod_id)
-                additions.append({
-                    "id": episode_id,
-                    "api_id": vod_id,
-                    "number": episode_number,
-                    "title": f"Dar-E-Nijaat Episode {episode_number}",
-                    "date": normalized.get("date"),
-                    "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
-                    "stream": stream_url,
-                    "official_url": _official_watch_url(raw, episode_url),
-                    "official_only": not bool(stream_url),
-                    "description": "Discovered from the official ARY episode page.",
-                    "next_episode_id": None,
-                    "raw": raw,
-                })
-                seen_ids.add(episode_id)
-                known_numbers.add(episode_number)
+            has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
+            total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
+            if has_next is False or (total_pages and page_number >= int(total_pages)):
                 break
 
-        episodes.extend(additions)
         episodes.sort(key=lambda episode: int(episode.get("number") or 0))
         with CACHE_LOCK:
             CACHE[key] = episodes
             CACHE["dar_e_nijaat_checked_at"] = time.time()
         _save_catalogue_store()
-        print(
-            f"[DAR-E-NIJAAT] Catalogue has {len(episodes)} episodes "
-            f"({len(additions)} newly discovered)",
-            flush=True,
-        )
+        print(f"[DAR-E-NIJAAT] Catalogue has {len(episodes)} episodes ({api_added} newly discovered)", flush=True)
+        if api_error:
+            raise RuntimeError(f"ARY+ VOD catalogue is unavailable: {api_error}") from api_error
         return episodes
 
     with CACHE_LOCK:
@@ -1607,36 +1496,13 @@ def choose_best_variant(variants: list[dict[str, Any]]) -> dict[str, Any] | None
     )
 
 
-def _find_video_source(value: Any) -> str | None:
-    if isinstance(value, str):
-        if value.startswith(("http://", "https://")):
-            return value
-        return None
-    if isinstance(value, dict):
-        for key in ("videoSource", "video_source", "url", "uri", "src", "source"):
-            found = _find_video_source(value.get(key))
-            if found:
-                return found
-        for child in value.values():
-            found = _find_video_source(child)
-            if found:
-                return found
-    elif isinstance(value, list):
-        for child in value:
-            found = _find_video_source(child)
-            if found:
-                return found
-    return None
-
-
 def inspect_episode_stream(episode_id: str, source_hint: str | None = None) -> dict[str, Any]:
     """Inspect an already available direct source; do not extract protected media."""
     source = source_hint
     if not source:
         try:
             data = api_json("/api/cdn/ep/" + quote(episode_id, safe=""))
-            candidate = _find_video_source(data)
-            source = candidate if _is_vod_storage_url(candidate) else None
+            source = _find_vod_stream(data)
         except Exception:
             source = None
     elif not _is_vod_storage_url(source):
@@ -1903,12 +1769,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not sid or not eid:
                     return json_response(self, {"ok": False, "error": "series and episode are required"}, 400)
                 episode = find_episode(sid, eid)
-                if episode.get("official_only") and not episode.get("stream"):
-                    return json_response(self, {
-                        "ok": False,
-                        "error": "This episode is listed on ARY, but no direct stream is exposed for in-app playback.",
-                        "official_url": episode.get("official_url"),
-                    }, 409)
                 return json_response(self, {
                     "ok": True,
                     "episode": episode,

@@ -449,7 +449,7 @@ async function loadEpisodes(force=false){
   episodeDiscoveryState=d.discovery?.state||"idle";episodes=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);writeSessionCache(cacheKey,episodes);lastEpisodeRefreshAt=Date.now();
   renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s");
   scheduleEpisodeRefresh();
-  if(force)toast(episodeDiscoveryState==="running"?"Checking ARY for newer episodes…":"Episode guide refreshed.");
+  if(force)toast(episodeDiscoveryState==="running"?"Checking ARY+ VOD for newer episodes…":"VOD catalogue refreshed.");
  }catch(e){if(episodes.length){toast("Connection paused · showing saved episodes")}else $("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
 function scheduleEpisodeRefresh(){clearTimeout(episodePollTimer);if(episodeDiscoveryState!=="running"||!currentSeries)return;episodePollTimer=setTimeout(async()=>{try{const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id));episodeDiscoveryState=d.discovery?.state||"idle";const updated=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);if(JSON.stringify(updated)!==JSON.stringify(episodes)){episodes=updated;writeSessionCache("ary-episodes:"+currentSeries.id,episodes);renderEpisodes()}$("episodeCount").textContent=episodes.length+" videos"+(episodeDiscoveryState==="running"?" · checking for new episodes…":episodeDiscoveryState==="error"?" · refresh failed":"");scheduleEpisodeRefresh()}catch{episodePollTimer=setTimeout(()=>loadEpisodes(false),6000)}},2500)}
@@ -467,14 +467,13 @@ function renderEpisodes(){
   const title=document.createElement("div");title.className="ep-title";title.textContent=e.title||"Video";
   const date=document.createElement("div");date.className="ep-date";date.textContent=e.date||"";
   const actions=document.createElement("div");actions.className="ep-actions";
-  const officialOnly=!!e.official_only&&!e.stream;
-  const stream=document.createElement("button");stream.className="watch";stream.type="button";stream.textContent=officialOnly?"↗ Watch on ARY":"▶ Stream";stream.setAttribute("aria-label",(officialOnly?"Open official page for ":"Stream ")+(e.title||("episode "+e.number)));stream.addEventListener("click",()=>officialOnly?window.open(e.official_url,"_blank","noopener,noreferrer"):playEpisode(e,watchState(e.id)?.position||0));
-  const download=document.createElement("button");download.className="download";download.type="button";download.textContent=officialOnly?"Official page only":"↓ Download";download.disabled=officialOnly;download.setAttribute("aria-label",(officialOnly?"No in-app stream for ":"Download ")+(e.title||("episode "+e.number)));if(!officialOnly)download.addEventListener("click",()=>downloadEpisode(e.id,download));
+  const stream=document.createElement("button");stream.className="watch";stream.type="button";stream.textContent="▶ Play in app";stream.setAttribute("aria-label","Play "+(e.title||("episode "+e.number))+" in app");stream.addEventListener("click",()=>playEpisode(e,watchState(e.id)?.position||0));
+  const download=document.createElement("button");download.className="download";download.type="button";download.textContent="↓ Download";download.setAttribute("aria-label","Download "+(e.title||("episode "+e.number)));download.addEventListener("click",()=>downloadEpisode(e.id,download));
   const find=document.createElement("button");find.className="download find-playlists";find.type="button";find.textContent="⌕ Inspect available playlists / quality";find.addEventListener("click",()=>inspectEpisodePlaylists(e,find));
-  actions.append(stream,download);if(!officialOnly)actions.append(find);
+  actions.append(stream,download,find);
   const status=document.createElement("div");status.id="status-"+e.id;status.className="status";
   const box=document.createElement("div");box.className="playlist-results";box.style.cssText="display:grid;gap:6px;margin-top:8px;overflow-wrap:anywhere";
-  body.append(title,date,actions,status,box);card.append(thumb,body);grid.appendChild(card);
+  if(!e.stream){const unavailable=document.createElement("div");unavailable.className="ep-date";unavailable.textContent="In-app VOD source not available yet";body.append(title,date,unavailable,actions,status,box)}else body.append(title,date,actions,status,box);card.append(thumb,body);grid.appendChild(card);
  }
 }
 async function inspectEpisodePlaylists(e,button){

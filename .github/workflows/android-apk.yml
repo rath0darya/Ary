@@ -79,7 +79,7 @@ jobs:
           release_notes="$(cat <<EOF
           ## CineWave for Android
 
-          Native Android app with an embedded on-device Python service. The app starts with its bundled catalogue and updates discovery in the background.
+          CineWave Android 2.2.1. Native playback uses transparent gesture controls and stays inside the app. The embedded on-device Python service checks ARY+'s VOD API for episode records and direct HLS sources; episodes without an accessible direct stream are never redirected to an external episode page.
 
           [Download the current APK](https://github.com/${GH_REPO}/releases/latest/download/CineWave.apk) · [Project site](https://${GH_REPO%%/*}.github.io/${GH_REPO#*/}/)
 

@@ -557,11 +557,11 @@ public class MainActivity extends Activity {
         if (episodeStatus != null) episodeList.addView(episodeStatus);
         if (episodeStatus != null) {
             episodeStatus.setText("running".equals(episodeDiscoveryState)
-                ? "Checking ARY for newly released episodes…"
+                ? "Checking ARY+ VOD for newly released episodes…"
                 : "error".equals(episodeDiscoveryState)
-                    ? "Couldn’t refresh the episode guide. Tap Find new episodes to retry."
+                    ? "ARY+ VOD discovery is unavailable. Saved direct streams remain available."
                     : "completed".equals(episodeDiscoveryState)
-                        ? "Episode guide current · " + episodes.length() + " episodes"
+                        ? "VOD catalogue checked · " + episodes.length() + " episodes"
                         : "");
         }
         if (refresh && "completed".equals(episodeDiscoveryState)) showToast("Episode guide updated");
@@ -613,15 +613,10 @@ public class MainActivity extends Activity {
         summary.addView(summaryText, new LinearLayout.LayoutParams(0, -2, 1));
         card.addView(summary);
         LinearLayout actions = row();
-        boolean officialOnly = episode.optBoolean("official_only") && !hasDirectStream(episode);
-        Button play = button(officialOnly ? "↗  Watch on ARY" : "▶  Play", true);
-        play.setOnClickListener(v -> {
-            if (officialOnly) openOfficialEpisode(episode);
-            else playEpisode(episode);
-        });
-        Button download = button(officialOnly ? "Official page only" : "↓  Download", false);
-        download.setEnabled(!officialOnly);
-        if (!officialOnly) download.setOnClickListener(v -> startDownload(episode, download));
+        Button play = button("▶  Play", true);
+        play.setOnClickListener(v -> playEpisode(episode));
+        Button download = button("↓  Download", false);
+        download.setOnClickListener(v -> startDownload(episode, download));
         LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
         actionParams.setMargins(0, dp(12), dp(8), 0);
         actions.addView(play, actionParams);
@@ -629,24 +624,19 @@ public class MainActivity extends Activity {
         downloadParams.setMargins(dp(8), dp(12), 0, 0);
         actions.addView(download, downloadParams);
         card.addView(actions);
+        if (!hasDirectStream(episode)) {
+            TextView sourceStatus = text("In-app VOD source not available yet", 11, MUTED, false);
+            LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(-1, -2);
+            sourceParams.setMargins(0, dp(8), 0, 0);
+            card.addView(sourceStatus, sourceParams);
+        }
         return card;
-    }
-
-    private void openOfficialEpisode(JSONObject episode) {
-        String url = episode.optString("official_url", "");
-        if (url.isEmpty()) { showToast("The official episode page is unavailable."); return; }
-        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-        catch (Exception error) { showToast("No browser is available to open this episode."); }
     }
 
     private void playEpisode(JSONObject episode) {
         if (currentSeriesId.isEmpty()) return;
         String id = episode.optString("id", "");
         if (id.isEmpty()) { showToast("This video has no episode ID."); return; }
-        if (episode.optBoolean("official_only") && !hasDirectStream(episode)) {
-            openOfficialEpisode(episode);
-            return;
-        }
         String savedSource = directStreamSource(episode);
         if (!savedSource.isEmpty()) {
             startNativePlayer(savedSource, episode);
@@ -1126,7 +1116,7 @@ public class MainActivity extends Activity {
         JSONObject nextEpisode = null;
         for (int i = 0; i < episodes.length(); i++) {
             JSONObject candidate = episodes.optJSONObject(i);
-            if (candidate == null || candidate.optBoolean("official_only")) continue;
+            if (candidate == null) continue;
             int number = candidate.optInt("number", -1);
             if (number > currentNumber && (nextEpisode == null || number < nextEpisode.optInt("number", Integer.MAX_VALUE))) nextEpisode = candidate;
         }
