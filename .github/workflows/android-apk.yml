@@ -13,7 +13,7 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: cinewave-apk-${{ github.ref }}
@@ -53,3 +53,37 @@ jobs:
           name: cinewave-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+
+      - name: Publish the current APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          apk_path="android/app/build/outputs/apk/debug/app-debug.apk"
+          release_tag="cinewave-android-latest"
+          test -s "$apk_path"
+          release_notes="Native CineWave Android APK built from commit ${SOURCE_SHA}. Build: ${RUN_URL}."
+
+          if gh release view "$release_tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "$apk_path#CineWave.apk" --clobber --repo "$GH_REPO"
+            gh release edit "$release_tag" --title "CineWave Android" --notes "$release_notes" --latest --repo "$GH_REPO"
+          else
+            gh release create "$release_tag" "$apk_path#CineWave.apk" \
+              --title "CineWave Android" \
+              --notes "$release_notes" \
+              --target "$SOURCE_SHA" \
+              --latest \
+              --repo "$GH_REPO"
+          fi
+
+          # Keep old release notes, but remove obsolete APK binaries from earlier app builds.
+          while IFS= read -r old_tag; do
+            [ -n "$old_tag" ] || continue
+            while IFS= read -r old_asset; do
+              [ -n "$old_asset" ] || continue
+              gh release delete-asset "$old_tag" "$old_asset" --yes --repo "$GH_REPO"
+            done < <(gh release view "$old_tag" --repo "$GH_REPO" --json assets --jq '.assets[].name | select(test("\\.apk$"; "i"))')
+          done < <(gh release list --repo "$GH_REPO" --limit 100 --json tagName --jq ".[] | .tagName | select(startswith(\"cinewave-\") and . != \"$release_tag\")")

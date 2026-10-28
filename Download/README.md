@@ -1,5 +1,5 @@
 # CineWave Android APK
 
-The native Android APK is built by GitHub Actions and uploaded as a temporary artifact. Open [Actions → Build native CineWave Android APK](https://github.com/rath0darya/Ary/actions/workflows/android-apk.yml), run the workflow, then download `cinewave-android-apk` from the completed run.
+Download the current native Android app from the [latest GitHub Release](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk).
 
-Artifacts expire after 7 days. This repository does not automatically publish Android releases.
+Each successful Android build replaces the `CineWave.apk` release asset. A temporary Actions artifact is also kept for 7 days.

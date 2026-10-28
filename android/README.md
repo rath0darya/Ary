@@ -2,15 +2,11 @@
 
 This is a native Android app. Catalogue browsing, search, episode details, downloads, and playback use Android views and a native Media3 player. An embedded Python service supplies the existing catalogue and direct-stream APIs and FFmpegKit handles supported downloads. The app does not require Termux, a separately installed Python app, or a browser. Online catalogue and stream sources still require internet access.
 
-## Build an APK without a PC
+## Download or build the APK
 
-1. Open the repository on GitHub.
-2. Select Actions → Build native CineWave Android APK → Run workflow.
-3. Wait for the build to finish.
-4. Open the completed workflow run and download the temporary cinewave-android-apk artifact.
-5. Extract the ZIP and install app-debug.apk on an Android device. If Android asks, allow installation from that source. If you installed an earlier debug APK from a different build, uninstall that older copy first because GitHub Actions signs each debug build with a temporary key.
+Download the current app from the [latest GitHub Release](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk). To build it yourself, open the repository's Actions tab and run **Build native CineWave Android APK**. A successful build replaces the APK in the latest Release and also uploads a temporary `cinewave-android-apk` artifact for 7 days.
 
-The workflow keeps the APK as a temporary GitHub Actions artifact for 7 days. It does not publish a GitHub Release or host a permanent APK download page.
+Install `CineWave.apk` on your Android device. If Android rejects an update because the debug signing key differs, uninstall the older debug build first. If Android asks, allow installation from that source.
 
 ## What is bundled
 

@@ -128,7 +128,7 @@ Open http://127.0.0.1:8787 in the browser. The command supports `aryweb --status
 
 The repository includes a standalone native **CineWave** Android app project under `android/`. Its Android catalogue and episode screens use native views, and Media3 ExoPlayer handles native HLS/MP4 playback. An embedded Python runtime supplies the catalogue and stream APIs; FFmpegKit handles supported downloads. The APK does not wrap the web interface in a WebView.
 
-To build without a PC, open the repository's **Actions** tab, choose **Build CineWave Android APK**, and select **Run workflow**. Download the `cinewave-android-apk` artifact from the completed run, extract it, and install `app-debug.apk`. Uninstall an earlier debug APK first if Android rejects the update, since each workflow build uses a temporary signing key. The workflow artifact is temporary (7 days); no permanent APK release or hosting page is created.
+The workflow publishes every successful build to the stable [CineWave Android release](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk), replacing the previous APK asset. It also keeps a temporary Actions artifact for 7 days. If Android rejects an update because the debug signing key differs, uninstall the older debug build before installing the new one.
 
 The APK still needs internet for online catalogue and media sources. Its cache and working downloads are app-private; completed files are exported to Android Downloads. Android 7.0 or newer is supported on arm64-v8a and x86_64 devices.
 
