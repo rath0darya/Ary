@@ -607,7 +607,7 @@ public class MainActivity extends Activity {
         summary.addView(summaryText, new LinearLayout.LayoutParams(0, -2, 1));
         card.addView(summary);
         LinearLayout actions = row();
-        boolean officialOnly = episode.optBoolean("official_only") && episode.optString("stream").isEmpty();
+        boolean officialOnly = episode.optBoolean("official_only") && !hasDirectStream(episode);
         Button play = button(officialOnly ? "↗  Watch on ARY" : "▶  Play", true);
         play.setOnClickListener(v -> {
             if (officialOnly) openOfficialEpisode(episode);
@@ -637,6 +637,15 @@ public class MainActivity extends Activity {
         if (currentSeriesId.isEmpty()) return;
         String id = episode.optString("id", "");
         if (id.isEmpty()) { showToast("This video has no episode ID."); return; }
+        if (episode.optBoolean("official_only") && !hasDirectStream(episode)) {
+            openOfficialEpisode(episode);
+            return;
+        }
+        String savedSource = directStreamSource(episode);
+        if (!savedSource.isEmpty()) {
+            startNativePlayer(savedSource, episode);
+            return;
+        }
         showLoading("Preparing playback", episode.optString("title", "Loading video…"));
         api("api/stream-info?series=" + enc(currentSeriesId) + "&episode=" + enc(id), result -> {
             JSONObject stream = result.optJSONObject("stream");
@@ -648,6 +657,25 @@ public class MainActivity extends Activity {
             if (source.isEmpty()) { showToast("No direct stream is available for this episode."); showSeriesDetails(); renderEpisodes(false); return; }
             startNativePlayer(source, episode);
         }, error -> { showSeriesDetails(); renderEpisodes(false); showToast("Playback unavailable: " + error); });
+    }
+
+    private boolean hasDirectStream(JSONObject episode) {
+        return !directStreamSource(episode).isEmpty();
+    }
+
+    private String directStreamSource(JSONObject episode) {
+        if (episode == null || episode.isNull("stream")) return "";
+        String source = episode.optString("stream", "").trim();
+        if (source.isEmpty() || "null".equalsIgnoreCase(source)) return "";
+        try {
+            Uri uri = Uri.parse(source);
+            String host = uri.getHost();
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null) return "";
+            host = host.toLowerCase(Locale.ROOT);
+            if (!host.equals("vod.aryzap.com") && !host.endsWith(".vod.aryzap.com")) return "";
+            String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase(Locale.ROOT);
+            return path.endsWith(".m3u8") || path.endsWith(".mp4") ? source : "";
+        } catch (Exception ignored) { return ""; }
     }
 
     private void startNativePlayer(String source, JSONObject episode) {
@@ -1202,12 +1230,16 @@ public class MainActivity extends Activity {
         connection.setConnectTimeout(12000);
         connection.setReadTimeout(45000);
         connection.setRequestProperty("Accept", "application/json");
-        try (InputStream input = connection.getInputStream()) {
-            byte[] bytes = readAll(input);
-            JSONObject json = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
-            if (connection.getResponseCode() >= 400 || !json.optBoolean("ok", true)) {
-                throw new IOException(json.optString("error", "Request failed"));
-            }
+        try {
+            int status = connection.getResponseCode();
+            InputStream input = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            if (input == null) throw new IOException("Local media service returned HTTP " + status);
+            byte[] bytes;
+            try (InputStream response = input) { bytes = readAll(response); }
+            JSONObject json;
+            try { json = new JSONObject(new String(bytes, StandardCharsets.UTF_8)); }
+            catch (Exception invalidJson) { throw new IOException("Local media service returned HTTP " + status); }
+            if (status >= 400 || !json.optBoolean("ok", true)) throw new IOException(json.optString("error", "Request failed"));
             return json;
         } finally { connection.disconnect(); }
     }
