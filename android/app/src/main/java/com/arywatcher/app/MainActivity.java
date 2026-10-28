@@ -1,6 +1,7 @@
 package com.arywatcher.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.media.AudioManager;
 import android.app.DownloadManager;
 import android.app.PictureInPictureParams;
@@ -22,6 +23,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Rational;
 import android.view.Gravity;
+import android.text.InputType;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -299,8 +301,14 @@ public class MainActivity extends Activity {
         title.setLetterSpacing(.03f);
         Button refresh = button("Refresh", false);
         refresh.setOnClickListener(v -> loadCatalogue(true));
+        Button apiAccess = button("🔑", false);
+        apiAccess.setContentDescription("Configure ARY VOD API access");
+        apiAccess.setOnClickListener(v -> showAryApiKeyDialog());
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         toolbar.addView(refresh);
+        LinearLayout.LayoutParams keyParams = new LinearLayout.LayoutParams(-2, -2);
+        keyParams.setMargins(dp(6), 0, 0, 0);
+        toolbar.addView(apiAccess, keyParams);
         content.addView(toolbar);
         TextView subtitle = text("Find your next watch", 14, MUTED, false);
         LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(-1, -2);
@@ -356,6 +364,68 @@ public class MainActivity extends Activity {
             }
             @Override public void afterTextChanged(android.text.Editable s) { }
         });
+    }
+
+    private File aryApiKeyFile() {
+        return new File(new File(new File(getFilesDir(), "runtime"), "data"), "api-key.txt");
+    }
+
+    private void showAryApiKeyDialog() {
+        File keyFile = aryApiKeyFile();
+        EditText keyInput = new EditText(this);
+        keyInput.setSingleLine(true);
+        keyInput.setTextColor(TEXT);
+        keyInput.setHintTextColor(MUTED);
+        keyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        keyInput.setHint(keyFile.isFile() ? "Saved key · enter a replacement or leave blank" : "ARY_API_KEY");
+        keyInput.setPadding(dp(14), 0, dp(14), 0);
+        keyInput.setBackground(rounded(SURFACE_2, 12, Color.rgb(50, 57, 72)));
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(dp(22), dp(4), dp(22), dp(8));
+        container.addView(keyInput, new LinearLayout.LayoutParams(-1, dp(50)));
+        new AlertDialog.Builder(this)
+            .setTitle("ARY+ VOD access")
+            .setMessage("Add the API key used by this repository to discover direct VOD streams. It is stored in this app’s private storage and is not included in GitHub or the APK.")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Remove saved key", (dialog, which) -> {
+                if (keyFile.delete()) {
+                    showToast("Saved API key removed.");
+                    refreshDarEpisodeCatalogue();
+                }
+            })
+            .setPositiveButton("Save & refresh", (dialog, which) -> {
+                String value = keyInput.getText().toString().trim();
+                if (value.isEmpty()) {
+                    if (keyFile.isFile()) showToast("Saved key kept. Refreshing VOD discovery.");
+                    else { showToast("Enter an ARY_API_KEY to refresh VOD discovery."); return; }
+                } else {
+                    File parent = keyFile.getParentFile();
+                    if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+                        showToast("Could not create private API-key storage.");
+                        return;
+                    }
+                    try (FileOutputStream output = new FileOutputStream(keyFile, false)) {
+                        output.write((value + "\n").getBytes(StandardCharsets.UTF_8));
+                        keyFile.setReadable(false, false);
+                        keyFile.setWritable(false, false);
+                        keyFile.setReadable(true, true);
+                        keyFile.setWritable(true, true);
+                    } catch (IOException error) {
+                        showToast("Could not save the API key: " + error.getMessage());
+                        return;
+                    }
+                }
+                refreshDarEpisodeCatalogue();
+            })
+            .show();
+    }
+
+    private void refreshDarEpisodeCatalogue() {
+        api("api/episodes?series=dar-e-nijaat&refresh=1", result -> {
+            if ("dar-e-nijaat".equalsIgnoreCase(currentSeriesId)) loadEpisodes(false);
+            showToast("Checking ARY+ VOD for episode streams.");
+        }, error -> showToast("VOD refresh failed: " + error));
     }
 
     private void updateCategoryStyles() {
@@ -499,6 +569,12 @@ public class MainActivity extends Activity {
         Button refresh = button("Find new episodes", false);
         refresh.setOnClickListener(v -> loadEpisodes(true));
         episodeHead.addView(refresh);
+        Button apiAccess = button("🔑", false);
+        apiAccess.setContentDescription("Configure ARY VOD API access");
+        apiAccess.setOnClickListener(v -> showAryApiKeyDialog());
+        LinearLayout.LayoutParams apiAccessParams = new LinearLayout.LayoutParams(-2, -2);
+        apiAccessParams.setMargins(dp(6), 0, 0, 0);
+        episodeHead.addView(apiAccess, apiAccessParams);
         LinearLayout.LayoutParams episodeHeadParams = new LinearLayout.LayoutParams(-1, -2);
         episodeHeadParams.setMargins(0, dp(18), 0, dp(8));
         detail.addView(episodeHead, episodeHeadParams);
@@ -559,7 +635,7 @@ public class MainActivity extends Activity {
             episodeStatus.setText("running".equals(episodeDiscoveryState)
                 ? "Checking ARY+ VOD for newly released episodes…"
                 : "error".equals(episodeDiscoveryState)
-                    ? "ARY+ VOD discovery is unavailable. Saved direct streams remain available."
+                    ? "ARY+ VOD discovery failed. Add or update the API key with 🔑."
                     : "completed".equals(episodeDiscoveryState)
                         ? "VOD catalogue checked · " + episodes.length() + " episodes"
                         : "");

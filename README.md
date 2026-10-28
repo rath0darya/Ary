@@ -19,11 +19,12 @@ CineWave is a native Android media companion with an embedded Python service. It
 
 - Native Android UI with catalogue search, categories, title details and a live-refreshing episode guide.
 - Embedded on-device Python API; no separate server setup is required by the Android app.
-- Background title and episode discovery with local persistence; the Dar-E-Nijaat episode list is read from the current official ARY guide instead of being limited to its original 20-item seed.
+- Background episode discovery uses ARY+'s paginated VOD API (`/api/v2/cdn/pg/{seriesId}?page={page}&limit=50`) and resolves direct media through `/api/cdn/ep/{episodeId}`. Direct HLS/MP4 URLs are accepted only from `vod.aryzap.com`.
 - Native Media3 video player with seek bar, ±10 second taps and buttons, playback speed, audio/subtitle track selection, video quality, fit/zoom/stretch, volume and brightness gestures, lock, fullscreen/landscape, picture-in-picture, auto-next, and saved resume position.
 - Download jobs and stream inspection through the local API.
 - Responsive browser UI with catalogue and playback tools.
 - Android APKs are published to the stable [CineWave Android release](https://github.com/rath0darya/Ary/releases/latest).
+- Android users can set the ARY API key from the 🔑 button; the key is stored in app-private storage and is not included in the repository or APK.
 
 ## Install on Android
 
@@ -55,6 +56,12 @@ Then open <http://127.0.0.1:8787>. To choose another port, set `ARYWEB_PORT`, fo
 
 The download endpoint chooses the highest HLS variant advertised by the source. Use it only for media you are authorized to access and download.
 
+For VOD discovery, the service sends the configured API key as `x-api-key` and a Bearer token to ARY+'s paginated catalogue endpoint, then requests each episode's media record from `/api/cdn/ep/{episodeId}` when the catalogue record does not contain a direct source. The series ID comes from `dar-e-nijaat-all-m3u8.json`; pagination uses `page` and `limit=50` and follows `hasNextPage`/`totalPages`.
+
+## API key
+
+The browser/Termux service reads `ARY_API_KEY` from the environment or `~/.ary-episode-watcher/api-key.txt` (override the directory with `ARY_CACHE_DIR`). For Android, tap the 🔑 button on the home screen or episode screen and enter the key there. It is saved only to the app's private `files/runtime/data/api-key.txt`. Without a valid key, the app can still play its bundled 20 direct streams, but ARY+ may reject discovery of newer episodes. The key is never committed or embedded in the public APK.
+
 ## Project structure
 
 ```text
@@ -67,4 +74,4 @@ tests/                   Python unit tests
 
 The app package identifier is `com.arywatcher.app`. Release assets and update information are listed on the [Releases page](https://github.com/rath0darya/Ary/releases).
 
-When an official episode is listed but ARY does not expose a direct stream to the app, CineWave marks it as an official-page episode and opens ARY’s page instead of presenting a broken in-app play or download action.
+Episode playback and downloads stay in the app. If ARY+'s VOD API does not return an accessible direct HLS/MP4 source, CineWave reports that the stream is unavailable instead of opening an external episode page.

@@ -16,6 +16,8 @@ Install `CineWave.apk` on your Android device. If Android rejects an update beca
 - FFmpegKit native Android libraries for HLS downloads and FFprobe validation.
 - A native Media3 ExoPlayer that plays HLS and MP4 streams from the local API.
 - Native Android catalogue and episode screens with poster images, search, refresh, download progress and Android Downloads export.
+- VOD episode discovery through the repo's ARY+ paginated catalogue and per-episode media endpoints. No episode-page redirect is used for playback.
+- Optional ARY API key entry from the 🔑 controls. The key stays in the app's private runtime storage and is never packaged into the APK.
 
 ## Storage and privacy
 
