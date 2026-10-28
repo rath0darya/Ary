@@ -271,7 +271,7 @@ public class MainActivity extends Activity {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 searchQuery = s.toString();
                 if (searchUpdate != null) main.removeCallbacks(searchUpdate);
-                searchUpdate = () -> renderSeriesGrid(grid, searchQuery);
+                searchUpdate = () -> renderSeriesGrid(seriesGrid, searchQuery);
                 main.postDelayed(searchUpdate, 180);
             }
             @Override public void afterTextChanged(android.text.Editable s) { }
@@ -827,7 +827,7 @@ public class MainActivity extends Activity {
     private Button button(String label, boolean primary) {
         Button button = new Button(this);
         button.setText(label);
-        button.setTextAllCaps(false);
+        button.setTransformationMethod(null);
         button.setTextSize(13);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextColor(primary ? Color.WHITE : TEXT);
