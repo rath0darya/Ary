@@ -79,7 +79,7 @@ jobs:
           release_notes="$(cat <<EOF
           ## CineWave for Android
 
-          CineWave Android 2.2.2. Native playback uses transparent gesture controls and stays inside the app. The embedded on-device Python service checks ARY+'s paginated VOD catalogue and episode media endpoints for direct HLS sources. Configure the ARY API key with the 🔑 control; it stays in app-private storage. Episodes without a direct stream are never redirected to an external episode page.
+          CineWave Android 2.2.3. Native playback uses transparent gesture controls and stays inside the app. The embedded on-device Python service follows the current ARY+ website bundle to discover its API host and public client key, reads the paginated VOD catalogue, and resolves direct HLS sources through episode media endpoints. No manual API key entry is required. Episodes without a direct stream are never redirected to an external episode page.
 
           [Download the current APK](https://github.com/${GH_REPO}/releases/latest/download/CineWave.apk) · [Project site](https://${GH_REPO%%/*}.github.io/${GH_REPO#*/}/)
 

@@ -25,7 +25,11 @@ APP_DIR = Path(os.environ.get("ARY_APP_DIR", str(Path(__file__).resolve().parent
 WEB_DIR = Path(os.environ.get("ARY_WEB_DIR", str(APP_DIR / "web")))
 
 ARY_BASE = os.environ.get("ARY_BASE_URL", "https://be.aryplus.tv").rstrip("/")
+ARY_BASE_OVERRIDE = os.environ.get("ARY_BASE_URL", "").strip()
 ARY_WEB = os.environ.get("ARY_WEB_URL", "https://aryplus.tv").rstrip("/")
+_ARY_API_CONFIG: dict[str, str] = {}
+_ARY_API_CONFIG_LOCK = threading.RLock()
+_ARY_API_CONFIG_CHECKED_AT = 0.0
 DISCOVERY_URLS = [
     item.strip()
     for item in os.environ.get(
@@ -51,7 +55,6 @@ CACHE_DIR = Path(os.environ.get(
     "ARY_CACHE_DIR",
     str(Path.home() / ".ary-episode-watcher"),
 ))
-API_KEY_FILE = CACHE_DIR / "api-key.txt"
 DOWNLOAD_DIR = Path(os.environ.get(
     "ARY_DOWNLOAD_DIR",
     "/sdcard/Movies/ARY Episode Watcher",
@@ -246,38 +249,47 @@ def http_text(url: str, headers: dict[str, str] | None = None, timeout: int = 25
     return http_get(url, headers, timeout).decode("utf-8", "replace")
 
 
-def extract_json_value(text: str, names: list[str]) -> str | None:
-    for name in names:
-        pattern = r"""["']""" + re.escape(name) + r"""["']\s*:\s*["']([^"']+)["']"""
-        match = re.search(pattern, text, re.I)
-        if match:
-            return match.group(1).strip()
-    return None
-
-
 def get_api_key() -> str | None:
     env_key = os.environ.get("ARY_API_KEY", "").strip()
     if env_key:
         return env_key
+    return _get_web_api_config().get("key")
+
+
+def _get_web_api_config() -> dict[str, str]:
+    """Read the same public API configuration used by the current ARY+ web client."""
+    global _ARY_API_CONFIG_CHECKED_AT
+    with _ARY_API_CONFIG_LOCK:
+        if _ARY_API_CONFIG and time.time() - _ARY_API_CONFIG_CHECKED_AT < 3600:
+            return dict(_ARY_API_CONFIG)
+        if _ARY_API_CONFIG_CHECKED_AT and time.time() - _ARY_API_CONFIG_CHECKED_AT < 600:
+            return dict(_ARY_API_CONFIG)
+        _ARY_API_CONFIG_CHECKED_AT = time.time()
     try:
-        key = API_KEY_FILE.read_text(encoding="utf-8").strip()
-        if key:
-            return key
-    except OSError:
-        pass
-    try:
-        page = http_text(ARY_WEB, timeout=15)
-    except Exception:
-        return None
-    key = extract_json_value(page, ["apiKey", "api_key", "x-api-key", "X-API-Key"])
-    if key:
-        try:
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            API_KEY_FILE.write_text(key + "\n", encoding="utf-8")
-            os.chmod(API_KEY_FILE, 0o600)
-        except OSError:
-            pass
-    return key
+        page = http_text(ARY_WEB, timeout=20)
+        scripts = re.findall(r'<script[^>]+src=["\']([^"\']+)', page, re.I)
+        bundles = [urljoin(ARY_WEB + "/", src) for src in scripts if re.search(r"/assets/[^/]+\.js(?:\?|$)", src)]
+        for bundle_url in bundles[:8]:
+            try:
+                bundle = http_text(bundle_url, {"Referer": ARY_WEB + "/"}, timeout=35)
+            except Exception as exc:
+                print(f"[ARY API] Web app config asset unavailable: {exc}", flush=True)
+                continue
+            base = re.search(r'appApiHomeEndpoint\s*:\s*["\'](https://[^"\']+)', bundle)
+            # The first interceptor is the main catalogue/media API client;
+            # recommendation clients later in the bundle carry a different key.
+            key = re.search(r'e\.headers\["x-api-key"\]\s*=\s*["\']([^"\']+)', bundle)
+            if key:
+                config = {"key": key.group(1)}
+                if base:
+                    config["base"] = base.group(1).rstrip("/")
+                with _ARY_API_CONFIG_LOCK:
+                    _ARY_API_CONFIG.update(config)
+                    _ARY_API_CONFIG_CHECKED_AT = time.time()
+                return config
+    except Exception as exc:
+        print(f"[ARY API] Automatic web app config discovery failed: {exc}", flush=True)
+    return {}
 
 
 def api_headers() -> dict[str, str]:
@@ -290,12 +302,13 @@ def api_headers() -> dict[str, str]:
     if key:
         headers["x-api-key"] = key
         headers["X-API-Key"] = key
-        headers["Authorization"] = "Bearer " + key
     return headers
 
 
 def api_json(path: str, timeout: int = 25) -> Any:
-    url = path if path.startswith("http") else ARY_BASE + path
+    config = _get_web_api_config()
+    base = ARY_BASE if ARY_BASE_OVERRIDE else config.get("base", ARY_BASE)
+    url = path if path.startswith("http") else base + path
     raw = http_get(url, api_headers(), timeout)
     return json.loads(raw.decode("utf-8", "replace"))
 
@@ -1280,10 +1293,11 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
         api_error: Exception | None = None
         page_signatures: set[tuple[str, ...]] = set()
         api_added = 0
+        api_total_pages: int | None = None
         for page_number in range(1, 101):
             try:
                 payload = api_json(
-                    f"/api/v2/cdn/pg/{quote(str(source_data['seriesId']), safe='')}?page={page_number}&limit=50",
+                    f"/api/v2/cdn/pg/{quote(str(source_data['seriesId']), safe='')}?page={page_number}&limit=10",
                     timeout=20,
                 )
             except Exception as exc:
@@ -1336,9 +1350,16 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                 known_numbers.add(number)
                 api_added += 1
 
-            has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
+            pagination = payload.get("pagination") if isinstance(payload, dict) else None
             total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
-            if has_next is False or (total_pages and page_number >= int(total_pages)):
+            if not total_pages and isinstance(pagination, dict):
+                total_pages = pagination.get("totalPages")
+            try:
+                api_total_pages = int(total_pages) if total_pages is not None else api_total_pages
+            except (TypeError, ValueError):
+                pass
+            has_next = payload.get("hasNextPage") if isinstance(payload, dict) else None
+            if has_next is False or (api_total_pages and page_number >= api_total_pages):
                 break
 
         episodes.sort(key=lambda episode: int(episode.get("number") or 0))
