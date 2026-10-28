@@ -11,6 +11,7 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -129,6 +130,7 @@ public class MainActivity extends Activity {
     private TextView playbackTime;
     private TextView playbackDuration;
     private TextView playerPlayButton;
+    private Button playerPipButton;
     private SeekBar playbackSeek;
     private FrameLayout playerStage;
     private Runnable playerHideControls;
@@ -679,7 +681,14 @@ public class MainActivity extends Activity {
             }
             @Override public void onIsPlayingChanged(boolean isPlaying) {
                 if (playerPlayButton != null) playerPlayButton.setText(isPlaying ? "Ⅱ" : "▶");
-                updatePictureInPictureParams(isPlaying);
+                boolean videoPlaying = isVideoPlaying();
+                if (playerPipButton != null) playerPipButton.setVisibility(videoPlaying ? View.VISIBLE : View.GONE);
+                updatePictureInPictureParams(videoPlaying);
+            }
+            @Override public void onVideoSizeChanged(androidx.media3.common.VideoSize videoSize) {
+                boolean videoPlaying = isVideoPlaying();
+                if (playerPipButton != null) playerPipButton.setVisibility(videoPlaying ? View.VISIBLE : View.GONE);
+                updatePictureInPictureParams(videoPlaying);
             }
             @Override public void onPlaybackStateChanged(int playbackState) {
                 if (playbackState == Player.STATE_ENDED) {
@@ -698,6 +707,9 @@ public class MainActivity extends Activity {
         playerStage = stage;
         stage.setBackgroundColor(Color.BLACK);
         stage.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
+        playerView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (isVideoPlaying()) updatePictureInPictureParams(true);
+        });
         playerView.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View view, MotionEvent event) {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
@@ -759,6 +771,7 @@ public class MainActivity extends Activity {
         });
         buildPlayerControls(stage, episode);
         root.addView(stage, new FrameLayout.LayoutParams(-1, -1));
+        playerView.post(() -> updatePictureInPictureParams(isVideoPlaying()));
         startPlayerProgressUpdates();
         schedulePlayerControlsHide();
     }
@@ -781,10 +794,11 @@ public class MainActivity extends Activity {
             if (locked) showPlayerControls(); else hidePlayerControls();
         });
         top.addView(lock);
-        Button pip = button("▣", false);
-        pip.setContentDescription("Picture in picture");
-        pip.setOnClickListener(v -> enterPip());
-        top.addView(pip);
+        playerPipButton = button("▣", false);
+        playerPipButton.setContentDescription("Picture in picture while video is playing");
+        playerPipButton.setVisibility(isVideoPlaying() ? View.VISIBLE : View.GONE);
+        playerPipButton.setOnClickListener(v -> enterPip());
+        top.addView(playerPipButton);
         Button full = button("⛶", false);
         full.setContentDescription("Toggle fullscreen and landscape");
         full.setOnClickListener(v -> toggleFullscreen());
@@ -1251,26 +1265,79 @@ public class MainActivity extends Activity {
         for (String child : children) copyAssetTree(assetPath + "/" + child, new File(destination, child));
     }
 
+    private boolean isVideoPlaying() {
+        if (player == null || playerView == null || !player.isPlaying() || player.getPlaybackState() != Player.STATE_READY) return false;
+        androidx.media3.common.VideoSize size = player.getVideoSize();
+        return size.width > 0 && size.height > 0;
+    }
+
+    private Rect pictureInPictureVideoRect() {
+        if (playerView == null || playerView.getWidth() <= 0 || playerView.getHeight() <= 0) return null;
+        int[] location = new int[2];
+        playerView.getLocationInWindow(location);
+        int left = location[0], top = location[1], width = playerView.getWidth(), height = playerView.getHeight();
+        int resizeMode = playerView.getResizeMode();
+        if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT && player != null) {
+            androidx.media3.common.VideoSize size = player.getVideoSize();
+            if (size.width > 0 && size.height > 0) {
+                float videoAspect = size.width * size.pixelWidthHeightRatio / size.height;
+                float viewAspect = width / (float) height;
+                if (viewAspect > videoAspect) {
+                    int fittedWidth = Math.round(height * videoAspect);
+                    left += (width - fittedWidth) / 2;
+                    width = fittedWidth;
+                } else {
+                    int fittedHeight = Math.round(width / videoAspect);
+                    top += (height - fittedHeight) / 2;
+                    height = fittedHeight;
+                }
+            }
+        }
+        return width > 0 && height > 0 ? new Rect(left, top, left + width, top + height) : null;
+    }
+
     private void enterPip() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || player == null) { showToast("Picture-in-picture needs Android 8.0 or newer."); return; }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) { showToast("Picture-in-picture needs Android 8.0 or newer."); return; }
+        if (!isVideoPlaying()) { showToast("Start video playback before opening picture-in-picture."); return; }
         try {
-            PictureInPictureParams params = new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build();
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
+            Rect sourceRect = pictureInPictureVideoRect();
+            if (sourceRect != null) builder.setSourceRectHint(sourceRect);
+            builder.setAspectRatio(pipAspectRatio());
+            PictureInPictureParams params = builder.build();
             enterPictureInPictureMode(params);
         } catch (Exception error) { showToast("Picture-in-picture is unavailable on this device."); }
+    }
+
+    private Rational pipAspectRatio() {
+        int width = 16, height = 9;
+        if (player != null) {
+            androidx.media3.common.VideoSize size = player.getVideoSize();
+            if (size.width > 0 && size.height > 0) {
+                width = size.width;
+                height = Math.max(1, Math.round(size.height / size.pixelWidthHeightRatio));
+            }
+        }
+        float ratio = width / (float) height;
+        if (ratio < 1f / 2.39f) return new Rational(100, 239);
+        if (ratio > 2.39f) return new Rational(239, 100);
+        return new Rational(width, height);
     }
 
     private void updatePictureInPictureParams(boolean playing) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         try {
-            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(playing);
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder().setAspectRatio(pipAspectRatio());
+            Rect sourceRect = pictureInPictureVideoRect();
+            if (sourceRect != null) builder.setSourceRectHint(sourceRect);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(playing && isVideoPlaying());
             setPictureInPictureParams(builder.build());
         } catch (Exception ignored) { }
     }
 
     @Override public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && player != null && player.isPlaying()) enterPip();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && isVideoPlaying()) enterPip();
     }
 
     @Override public void onPictureInPictureModeChanged(boolean inPip, Configuration config) {
@@ -1290,6 +1357,8 @@ public class MainActivity extends Activity {
         if (playerProgressUpdate != null) main.removeCallbacks(playerProgressUpdate);
         if (playerHideControls != null) main.removeCallbacks(playerHideControls);
         if (player != null) { player.release(); player = null; }
+        playerPipButton = null;
+        updatePictureInPictureParams(false);
         playerView = null;
         playerStage = null;
         playbackSeek = null;
