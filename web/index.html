@@ -228,6 +228,51 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 }
 @media(max-width:370px){#player .player-actions{gap:4px}#player #captionsBtn{min-width:40px}}
 
+/* Catalog discovery, touch targets, and keyboard focus */
+.catalogue{scroll-margin-top:96px}
+.catalogue .section-head{align-items:center}
+.catalogue-intro{max-width:580px;margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.55}
+.catalogue .tools{padding:16px}
+.catalogue .filters{grid-template-columns:minmax(220px,2fr) repeat(3,minmax(135px,1fr)) auto}
+.catalogue .filter{height:46px}
+.catalogue .filter[type=search]{padding-left:42px;background-image:radial-gradient(circle at 19px 20px,transparent 6px,#8991a2 6.5px,#8991a2 7.8px,transparent 8.3px),linear-gradient(45deg,transparent 47%,#8991a2 48%,#8991a2 57%,transparent 58%);background-size:28px 28px,8px 8px;background-position:5px 5px,29px 26px;background-repeat:no-repeat}
+.catalogue .filter::placeholder{color:#969eae}
+.catalogue .filter-select{appearance:none;padding-right:34px;background-image:linear-gradient(45deg,transparent 50%,#9ba3b3 50%),linear-gradient(135deg,#9ba3b3 50%,transparent 50%);background-position:calc(100% - 17px) 19px,calc(100% - 12px) 19px;background-size:5px 5px;background-repeat:no-repeat}
+.catalogue-status .filter-select{height:38px;min-width:130px;margin-left:7px;padding:0 32px 0 10px;border:1px solid var(--line);border-radius:11px;background-color:#0b0e14;color:var(--text);font-size:12px}
+.catalogue .clear-filters{height:46px;padding:0 14px;border:1px solid var(--line);border-radius:13px;background:#ffffff08;color:#d8dce5;font-size:12px;font-weight:800;white-space:nowrap}
+.catalogue .clear-filters:hover{border-color:var(--line-strong);background:#ffffff12}
+.catalogue .chips{padding:15px 2px 2px;gap:9px}
+.catalogue .chip{min-height:40px}
+.catalogue-status{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--muted);font-size:12px;padding:13px 2px 0}
+.catalogue-status strong{color:var(--text);font-variant-numeric:tabular-nums}
+.catalogue .content-row{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:22px}
+.card{border-radius:18px}
+.card:focus-visible{outline:2px solid #fff;outline-offset:5px}
+.card .play-mini{display:grid;place-items:center;opacity:0;transform:translateY(5px);transition:opacity .18s,transform .18s}
+.card:hover .play-mini,.card:focus-visible .play-mini{opacity:1;transform:translateY(0)}
+.mobile-nav{grid-template-columns:repeat(5,minmax(0,1fr));padding-bottom:max(6px,env(safe-area-inset-bottom,0px));height:calc(60px + env(safe-area-inset-bottom,0px))}
+.mobile-nav button{min-width:0}
+.mobile-nav button:hover,.mobile-nav button:focus-visible{color:#fff;background:#ffffff0b}
+.nav button:focus-visible,.top-actions .icon:focus-visible,.chip:focus-visible,.clear-filters:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.detail{overscroll-behavior:contain}
+@media(max-width:1050px){.catalogue .filters{grid-template-columns:repeat(2,minmax(0,1fr))}.catalogue .filter-search{grid-column:1/-1}}
+@media(max-width:700px){
+ .catalogue{margin-top:28px}
+ .catalogue .tools{padding:12px}
+ .catalogue .filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .catalogue .filter-search{grid-column:1/-1}
+ .catalogue .clear-filters{grid-column:1/-1}
+ .catalogue .chips{margin:0;padding-top:13px}
+ .catalogue .content-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 12px;margin:0;padding:0}
+ .catalogue .card{width:auto;max-width:none;flex:none}
+ .catalogue .card .play-mini{opacity:1;transform:none}
+ .catalogue-status{padding-top:11px}
+ .hero-actions .btn{min-height:48px}
+ .mobile-nav{left:8px;right:8px;bottom:8px}
+}
+@media(max-width:360px){.mobile-nav button{font-size:9px}.mobile-nav b{font-size:15px}.catalogue .filters{grid-template-columns:1fr}.catalogue .filter-search,.catalogue .clear-filters{grid-column:1}}
+@media(prefers-reduced-motion:reduce){.card .play-mini{transition:none}}
+
 </style>
 
 <style>.ep-actions{grid-template-columns:repeat(3,minmax(0,1fr))}.playlist-results button{margin-top:7px;padding:8px 10px;font-size:12px}</style>
@@ -237,15 +282,15 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
   <div class="logo">CINE<b>•</b>WAVE</div>
   <nav class="nav">
     <button onclick="scrollHome()">Home</button>
-    <button onclick="setCategory('series')">Series</button>
-    <button onclick="setCategory('telefilms')">Telefilms</button>
-    <button onclick="setCategory('shows')">Shows</button>
-    <button onclick="setCategory('movies')">Movies</button>
+    <button data-category="series" aria-pressed="false" onclick="setCategory('series')">Series</button>
+    <button data-category="telefilms" aria-pressed="false" onclick="setCategory('telefilms')">Telefilms</button>
+    <button data-category="shows" aria-pressed="false" onclick="setCategory('shows')">Shows</button>
+    <button data-category="movies" aria-pressed="false" onclick="setCategory('movies')">Movies</button>
     <button onclick="discoveryMode()" title="Discover new titles and episodes">Discover</button>
   </nav>
   <div class="top-actions">
-    <input id="search" class="search" placeholder="Search titles, genres, years…" oninput="render()">
-    <button class="icon" onclick="health()" title="Server health">⌁</button>
+    <input id="search" class="search" type="search" aria-label="Search the catalogue" placeholder="Search titles, genres, years…" oninput="syncCatalogueSearch(this)">
+    <button class="icon" onclick="health()" aria-label="Check server status" title="Server health">⌁</button>
   </div>
 </header>
 
@@ -255,23 +300,37 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
   <h1 id="heroTitle">Dar-E-Nijaat</h1>
   <div id="heroMeta" class="facts"></div>
   <p id="heroDesc" class="hero-desc">Discover titles, browse episodes and stream in one place.</p>
-  <div class="hero-actions"><button class="btn primary" onclick="heroPlay()">▶ Episode guide</button><button class="btn" onclick="document.getElementById('rows').scrollIntoView({behavior:'smooth'})">Episode list</button></div>
+  <div class="hero-actions"><button class="btn primary" onclick="heroPlay()">▶ Episode guide</button><button class="btn" onclick="document.getElementById('catalogueSection').scrollIntoView({behavior:'smooth'})">Browse catalogue</button></div>
  </div>
 </section>
 
 <main>
 <section id="continueSection" class="section continue" style="display:none"><div class="section-head"><h2 class="title">Continue Watching</h2></div><div id="continueRow" class="content-row"></div></section>
 <section class="section"><div class="section-head"><h2 class="title">Featured Picks</h2><span id="recentCount" class="count"></span></div><div id="recentRow" class="content-row"><div class="loading">Loading…</div></div></section>
+<section id="catalogueSection" class="section catalogue">
+ <div class="section-head"><div><h2 class="title">Explore the catalogue</h2><p class="catalogue-intro">Find something to watch by title, genre, year, or format.</p></div></div>
+ <div class="tools">
+  <div class="filters">
+   <input id="catalogueSearch" class="filter filter-search" type="search" aria-label="Search titles, cast, genres, and descriptions" placeholder="Search titles, cast, genres…" oninput="syncCatalogueSearch(this)">
+   <select id="yearFilter" class="filter filter-select" aria-label="Filter by year" onchange="render()"><option value="">All years</option></select>
+   <select id="genreFilter" class="filter filter-select" aria-label="Filter by genre" onchange="render()"><option value="">All genres</option></select>
+   <select id="typeFilter" class="filter filter-select" aria-label="Filter by format" onchange="render()"><option value="">All formats</option></select>
+   <button class="clear-filters" type="button" onclick="clearFilters()">Clear filters</button>
+  </div>
+  <div id="chips" class="chips" role="group" aria-label="Browse by category"></div>
+  <div class="catalogue-status"><span id="catalogueCount" aria-live="polite">Loading titles…</span><label>Sort <select id="sortFilter" class="filter filter-select" aria-label="Sort titles" onchange="render()"><option value="relevance">Featured</option><option value="title-asc">Title A–Z</option><option value="title-desc">Title Z–A</option><option value="year-desc">Newest year</option><option value="year-asc">Oldest year</option></select></label></div>
+ </div>
+</section>
 <section class="section"><div id="rows" class="rows"></div></section>
 </main>
 
-<section id="detail" class="detail">
- <button class="close" onclick="closeDetail()">×</button>
+<section id="detail" class="detail" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+ <button class="close" type="button" aria-label="Close title details" title="Close" onclick="closeDetail()">×</button>
  <div id="detailHero" class="detail-hero"><div class="detail-copy"><div id="detailType" class="eyebrow"></div><h2 id="detailTitle"></h2><div id="detailFacts" class="facts"></div><p id="detailDesc" class="desc"></p><div id="detailCast" class="cast"></div><div class="hero-actions"><button id="detailPlay" class="btn primary">▶ Play</button></div></div></div>
  <div class="detail-body"><div class="section-head"><h2 class="title">Episodes / Video</h2><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span id="episodeCount" class="count"></span><button class="btn" type="button" onclick="loadEpisodes(true)">↻ Find newer entries</button></div></div><input id="episodeSearch" class="search" style="width:100%;max-width:500px;background:#ffffff08" placeholder="Search episodes…" oninput="renderEpisodes()"><div id="seasonBar" class="seasonbar"></div><div id="episodeGrid" class="ep-grid"><div class="loading">Loading…</div></div></div>
 </section>
 
-<section id="player" class="player" aria-label="Video player" aria-modal="true" role="dialog">
+<section id="player" class="player" aria-labelledby="playerTitle" aria-modal="true" role="dialog">
  <div class="video-stage" id="videoStage">
   <video id="video" playsinline webkit-playsinline preload="metadata"></video>
   <div class="seek-preview" id="seekPreview"><video id="previewVideo" muted playsinline preload="metadata"></video><span id="previewTime">00:00</span></div>
@@ -324,7 +383,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <script>
 const $=id=>document.getElementById(id);
-let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1,lastEpisodeRefreshAt=0;
+let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1,lastEpisodeRefreshAt=0,featuredSeriesId=null,lastDetailTrigger=null;
 const categories=[["all","All"],["drama","Drama"],["telefilms","Telefilms"],["shows","Shows"],["movies","Movies"],["series","Series"],["comedy","Comedy"],["romance","Romance"],["action","Action"],["sports","Sports"],["news","News"]];
 
 async function get(path){const r=await fetch(path,{cache:"no-store",headers:{"Accept":"application/json"}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d}
@@ -341,14 +400,32 @@ function genresOf(x){const g=x?.genres||x?.catalogue_genres||[];return Array.isA
 function yearOf(x){return x?.year||x?.release_year||x?.releaseYear||""}
 function poster(x){return x?.poster||x?.poster_url||x?.cover_image||x?.cover||x?.image||x?.image_url||x?.backdrop||x?.thumbnail||x?.thumbnail_url||""}
 function matches(x,cat){const t=typeOf(x),g=genresOf(x).join(" ").toLowerCase();if(cat==="all")return true;if(cat==="drama")return g.includes("drama");if(cat==="telefilms")return t==="Telefilm";if(cat==="shows")return t==="Show"||/tv shows|reality|game show/.test(g);if(cat==="movies")return t==="Movie";if(cat==="series")return t==="Series";return g.includes(cat)}
-function card(x){const p=poster(x);const prog=watchState(x.id);return '<button class="card series-card" data-id="'+esc(x.id)+'"><div class="poster">'+(p?'<img loading="lazy" referrerpolicy="no-referrer" decoding="async" data-original="'+esc(p)+'" src="'+imageUrl(p)+'" alt="">':'')+'<span class="badge">'+esc(typeOf(x))+'</span><span class="play-mini">▶</span>'+(prog?'<span class="progress"><i style="width:'+Math.min(100,prog.progress||0)+'%"></i></span>':'')+'</div><div class="card-name">'+esc(x.title||"Untitled")+'</div><div class="card-meta">'+esc(yearOf(x)||"")+(genresOf(x).length?" · "+esc(genresOf(x).slice(0,2).join(" · ")):"")+'</div></button>'}
-function renderChips(){$("chips").innerHTML=categories.map(c=>'<button class="chip '+(activeCategory===c[0]?"active":"")+'" onclick="setCategory(\''+c[0]+'\')">'+c[1]+'</button>').join("")}
-function buildFilters(){}
-function render(){const q=(($("search")?.value||"").trim()).toLowerCase();let list=series.filter(x=>matches(x,activeCategory)&&(!q||[x.title,typeOf(x),yearOf(x),...genresOf(x),x.description||"",x.cast||""].join(" ").toLowerCase().includes(q)));const groups=[{name:categories.find(c=>c[0]===activeCategory)?.[1]||"All titles",items:list}];$("rows").innerHTML=groups.map(g=>g.items.length?'<section><div class="section-head"><h2 class="title">'+esc(g.name)+'</h2><span class="count">'+g.items.length+'</span></div><div class="content-row">'+g.items.map(card).join("")+'</div></section>':'<div class="empty">No titles found.</div>').join("")}
-function setCategory(c){activeCategory=c;render();$("rows").scrollIntoView({behavior:"smooth",block:"start"})}
-function clearFilters(){$("catalogueSearch").value="";$("search").value="";$("yearFilter").value="";$("genreFilter").value="";$("typeFilter").value="";$("sortFilter").value="relevance";render()}
+function card(x){const p=poster(x);const prog=watchState(x.id);return '<button class="card series-card" type="button" data-id="'+esc(x.id)+'" aria-label="Open '+esc(x.title||"Untitled")+' · '+esc(typeOf(x))+'"><div class="poster">'+(p?'<img loading="lazy" referrerpolicy="no-referrer" decoding="async" data-original="'+esc(p)+'" src="'+imageUrl(p)+'" alt="">':'')+'<span class="badge">'+esc(typeOf(x))+'</span><span class="play-mini" aria-hidden="true">▶</span>'+(prog?'<span class="progress"><i style="width:'+Math.min(100,prog.progress||0)+'%"></i></span>':'')+'</div><div class="card-name">'+esc(x.title||"Untitled")+'</div><div class="card-meta">'+esc(yearOf(x)||"")+(genresOf(x).length?" · "+esc(genresOf(x).slice(0,2).join(" · ")):"")+'</div></button>'}
+function renderChips(){const el=$("chips");if(!el)return;el.innerHTML=categories.map(c=>'<button type="button" class="chip '+(activeCategory===c[0]?"active":"")+'" aria-pressed="'+(activeCategory===c[0])+ '" onclick="setCategory(\''+c[0]+'\')">'+c[1]+'</button>').join("");document.querySelectorAll("[data-category]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.category===activeCategory)))}
+function fillSelect(id,label,values,sorter){const el=$(id);if(!el)return;const selected=el.value;el.replaceChildren(new Option(label,""));values.sort(sorter).forEach(value=>el.add(new Option(value,value)));if(values.includes(selected))el.value=selected}
+function buildFilters(){
+ fillSelect("yearFilter","All years",[...new Set(series.map(x=>String(yearOf(x)||"").trim()).filter(Boolean))],(a,b)=>Number(b)-Number(a)||b.localeCompare(a));
+ fillSelect("genreFilter","All genres",[...new Set(series.flatMap(genresOf).map(x=>x.trim()).filter(Boolean))],(a,b)=>a.localeCompare(b));
+ fillSelect("typeFilter","All formats",[...new Set(series.map(x=>String(typeOf(x)||"").trim()).filter(Boolean))],(a,b)=>a.localeCompare(b));
+ renderChips();
+}
+function syncCatalogueSearch(input){const mainSearch=$("catalogueSearch"),headerSearch=$("search"),value=input.value;if(mainSearch&&mainSearch!==input)mainSearch.value=value;if(headerSearch&&headerSearch!==input)headerSearch.value=value;render()}
+function render(){
+ const q=(($("catalogueSearch")?.value||$("search")?.value||"").trim()).toLowerCase(),year=$("yearFilter")?.value||"",genre=($("genreFilter")?.value||"").toLowerCase(),type=$("typeFilter")?.value||"",sort=$("sortFilter")?.value||"relevance";
+ let list=series.filter(x=>matches(x,activeCategory)&&(!year||String(yearOf(x))===year)&&(!genre||genresOf(x).some(g=>g.toLowerCase()===genre))&&(!type||typeOf(x)===type)&&(!q||[x.title,x.id,typeOf(x),yearOf(x),...genresOf(x),x.description||"",x.cast||""].join(" ").toLowerCase().includes(q)));
+ if(sort==="title-asc")list.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
+ if(sort==="title-desc")list.sort((a,b)=>String(b.title||"").localeCompare(String(a.title||"")));
+ if(sort==="year-desc")list.sort((a,b)=>(Number(yearOf(b))||0)-(Number(yearOf(a))||0)||String(a.title||"").localeCompare(String(b.title||"")));
+ if(sort==="year-asc")list.sort((a,b)=>(Number(yearOf(a))||0)-(Number(yearOf(b))||0)||String(a.title||"").localeCompare(String(b.title||"")));
+ renderChips();
+ $("catalogueCount").innerHTML='<strong>'+list.length+'</strong> '+(list.length===1?"title":"titles")+(q||year||genre||type||activeCategory!=="all"?" match":" in your collection");
+ const group=categories.find(c=>c[0]===activeCategory)?.[1]||"All titles";
+ $("rows").innerHTML=list.length?'<section><div class="section-head"><h2 class="title">'+esc(group)+'</h2><span class="count">'+list.length+'</span></div><div class="content-row">'+list.map(card).join("")+'</div></section>':'<div class="empty"><strong>No titles match those filters.</strong><br><span>Try another search or clear the filters.</span></div>';
+}
+function setCategory(c){activeCategory=c;render();$("catalogueSection").scrollIntoView({behavior:"smooth",block:"start"})}
+function clearFilters(){$("catalogueSearch").value="";$("search").value="";$("yearFilter").value="";$("genreFilter").value="";$("typeFilter").value="";$("sortFilter").value="relevance";activeCategory="all";render()}
 function scrollHome(){scrollTo({top:0,behavior:"smooth"})}
-async function loadSeries(refresh=false){const cached=readSessionCache(SERIES_CACHE_KEY);if(!refresh&&!series.length&&Array.isArray(cached)){series=cached;buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0]);}try{const d=await get("/api/series"+(refresh?"?refresh=1":""));series=Array.isArray(d.series)?d.series:[];writeSessionCache(SERIES_CACHE_KEY,series);buildFilters();render();renderRecent();renderContinue();if(series[0])setHero(series[0])}catch(e){if(series.length){toast("Connection paused · showing saved catalogue")}else $("rows").innerHTML='<div class="empty">Catalogue unavailable: '+esc(e.message)+'</div>'}}
+async function loadSeries(refresh=false){const cached=readSessionCache(SERIES_CACHE_KEY);if(!refresh&&!series.length&&Array.isArray(cached)){series=cached;buildFilters();render();renderRecent();renderContinue();if(series[0]){featuredSeriesId=series[0].id;setHero(series[0])}}try{const d=await get("/api/series"+(refresh?"?refresh=1":""));series=Array.isArray(d.series)?d.series:[];writeSessionCache(SERIES_CACHE_KEY,series);buildFilters();render();renderRecent();renderContinue();if(series[0]){featuredSeriesId=series[0].id;setHero(series[0])}}catch(e){if(series.length){toast("Connection paused · showing saved catalogue")}else $("rows").innerHTML='<div class="empty">Catalogue unavailable: '+esc(e.message)+'</div>'}}
 async function refreshCatalogue(){await loadSeries(true);toast("Catalogue refreshed")}
  async function discoveryMode(){const buttons=[...document.querySelectorAll("button")].filter(x=>x.textContent.trim()==="Discover"||x.textContent.trim()==="⌕Discover");buttons.forEach(x=>{x.disabled=true;x.textContent="Discovering…"});try{await loadSeries(true);toast("Discovery complete · "+series.length+" titles found")}finally{buttons.forEach(x=>{x.disabled=false;x.textContent=x.closest(".mobile-nav")?"⌕Discover":"Discover"})}}
 function setHero(x){$("heroTitle").textContent=x.title||"Discover titles";$("heroMeta").innerHTML='<span class="pill">'+esc(typeOf(x))+'</span>'+(yearOf(x)?'<span class="pill">'+esc(yearOf(x))+'</span>':'')+genresOf(x).slice(0,3).map(g=>'<span class="pill">'+esc(g)+'</span>').join("");$("heroDesc").textContent=cleanUiText(x.description||"Browse the collection, choose a title and play available episodes or direct videos.");setBackdrop($("hero"),poster(x))}
@@ -359,7 +436,7 @@ function saveWatch(e,pos,ended=false){if(!e||!isFinite(pos))return;const duratio
 function renderContinue(){const all=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith("ary-watch:")){try{const v=JSON.parse(localStorage.getItem(k));if(v&&!v.ended&&v.progress>1)all.push(v)}catch{}}}all.sort((a,b)=>b.updated-a.updated);$("continueSection").style.display=all.length?"block":"none";$("continueRow").innerHTML=all.slice(0,12).map(v=>'<button class="card continue-card" data-watch-id="'+esc(v.id)+'"><div class="poster" style="height:158px">'+(v.poster?'<img loading="lazy" src="'+imageUrl(v.poster)+'">':'')+'<span class="progress"><i style="width:'+Math.min(100,v.progress)+'%"></i></span></div><div class="card-name">'+esc(v.seriesTitle||v.title)+'</div><div class="card-meta">Continue · '+v.progress+'%</div></button>').join("")}
 async function resumeWatch(v){await openSeries(v.seriesId);if(v.id){const e=episodes.find(x=>x.id===v.id)||episodes.find(x=>Number(x.number)===Number(v.number));if(e)playEpisode(e,v.position||0)}}
 
-async function openSeries(id){try{$("detail").classList.add("open");document.body.style.overflow="hidden";const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;setHero(currentSeries);$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=cleanUiText(currentSeries.description||"");$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";setBackdrop($("detailHero"),poster(currentSeries));$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
+async function openSeries(id){try{lastDetailTrigger=document.activeElement;$("detail").classList.add("open");document.body.style.overflow="hidden";$("detail").querySelector(".close").focus();episodes=[];$("episodeSearch").value="";$("episodeCount").textContent="";$("episodeGrid").innerHTML='<div class="loading">Loading episode catalogue…</div>';const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=cleanUiText(currentSeries.description||"");$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";setBackdrop($("detailHero"),poster(currentSeries));$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
 async function loadEpisodes(force=false){
  if(!currentSeries)return;
  const cacheKey="ary-episodes:"+currentSeries.id;const cached=readSessionCache(cacheKey);
@@ -526,25 +603,25 @@ function toggleDownloadCenterIfNeeded(){const p=$("downloadCenter");if(!p.classL
 async function pollDownload(jobId,episodeId,button){try{const response=await get("/api/download/"+encodeURIComponent(jobId));const previous=downloadJobs.get(jobId)||{};const job={...previous,...response.job,title:previous.title||response.job.episode_title||"Episode download",updated:Date.now()};downloadJobs.set(jobId,job);renderDownloadJobs();const box=$("status-"+CSS.escape(episodeId));if(job.state==="completed"){if(box)box.textContent="✓ Download ready · "+formatBytes(job.size)+" · tap Save file in Download manager.";if(button)button.disabled=false;if(!job.notified){job.notified=true;notifyBrowser("Download ready",job.title+" is ready. Open the download manager to save it.");toast("Download ready — tap Save file in Download manager.")}return}else if(job.state==="error"){if(box)box.textContent="Download failed: "+(job.error||"Unknown error");if(button)button.disabled=false;toast("Download failed: "+(job.error||"Unknown error"));return}else{if(box)box.textContent=(job.state==="downloading"?"Downloading":"Preparing")+" · "+formatBytes(job.size)+" · "+(job.speed||"");setTimeout(()=>pollDownload(jobId,episodeId,button),1200)}}catch(e){setTimeout(()=>pollDownload(jobId,episodeId,button),2200)}}
 function resumeDownloadPolling(){for(const j of downloadJobs.values()){if(j&&j.id&&!["completed","error"].includes(j.state)&&!j._resumePending){j._resumePending=true;get("/api/download/"+encodeURIComponent(j.id)).then(d=>{const latest={...j,...d.job,updated:Date.now()};delete latest._resumePending;downloadJobs.set(j.id,latest);renderDownloadJobs();if(!["completed","error"].includes(latest.state))pollDownload(j.id,latest.episode_id||"",null)}).catch(()=>{delete j._resumePending})}}}
 function closePlayer(){const v=$("video");if(currentEpisode)saveWatch(currentEpisode,v.currentTime||0,false);destroyPlayer();$("player").classList.remove("open","locked","hidden-ui","landscape-fallback");locked=false;orientationFallback=false;landscapeMode=false;clearTimeout(playerHideTimer);try{screen.orientation?.unlock?.()}catch{}$("settings").classList.remove("open");document.body.style.overflow=$("detail").classList.contains("open")?"hidden":""}
-function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow=""}
-function heroPlay(){if(series[0])openSeries(series[0].id)}
+function closeDetail(){if($("player").classList.contains("open"))return;$("detail").classList.remove("open");document.body.style.overflow="";if(lastDetailTrigger?.isConnected)lastDetailTrigger.focus()}
+function heroPlay(){if(featuredSeriesId)openSeries(featuredSeriesId)}
 async function health(){try{const d=await get("/api/health");toast("Server OK · FFmpeg "+(d.ffmpeg?"ready":"missing"))}catch(e){toast(e.message)}}
 async function updateMetadata(){try{await get("/api/catalogue/metadata?start=1");$("metadataStatus").textContent="Metadata update started…";clearInterval(metadataTimer);metadataTimer=setInterval(async()=>{try{const d=await get("/api/catalogue/metadata");$("metadataStatus").textContent="Metadata "+d.done+"/"+d.total+" · "+d.state;if(d.state==="completed"||d.state==="error"){clearInterval(metadataTimer);await loadSeries(false)}}catch{}},1000)}catch(e){toast(e.message)}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2200)}
 document.addEventListener("keydown",e=>{const modal=$("liveModal");if(e.key==="Escape"&&modal?.classList.contains("open"))closeLivePlayer()});const liveModal=$("liveModal");if(liveModal)liveModal.addEventListener("click",e=>{if(e.target===liveModal)closeLivePlayer()});
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("player").classList.contains("open"))closePlayer()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if($("player").classList.contains("open"))closePlayer();else if($("detail").classList.contains("open"))closeDetail()});
 window.addEventListener("pagehide",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)});setInterval(()=>{if(!document.hidden&&currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)},60000);
 bindPlayerControls();
 renderDownloadJobs();
 loadSeries();
 </script>
 <nav class="mobile-nav" aria-label="Mobile navigation">
- <button onclick="scrollHome()"><b>⌂</b>Home</button>
- <button onclick="document.getElementById('rows').scrollIntoView({behavior:'smooth'})"><b>◈</b>Library</button>
- <button onclick="setCategory('series')"><b>▶</b>Series</button>
- <button onclick="discoveryMode()"><b>⌕</b>Discover</button>
- <button onclick="refreshCatalogue()"><b>↻</b>Refresh</button>
+ <button type="button" onclick="scrollHome()" aria-label="Home"><b aria-hidden="true">⌂</b>Home</button>
+ <button type="button" onclick="document.getElementById('catalogueSection').scrollIntoView({behavior:'smooth'})" aria-label="Browse catalogue"><b aria-hidden="true">◈</b>Browse</button>
+ <button type="button" data-category="series" aria-pressed="false" onclick="setCategory('series')" aria-label="Filter series"><b aria-hidden="true">▶</b>Series</button>
+ <button type="button" onclick="document.getElementById('catalogueSearch').focus();document.getElementById('catalogueSection').scrollIntoView({behavior:'smooth'})" aria-label="Search catalogue"><b aria-hidden="true">⌕</b>Search</button>
+ <button type="button" onclick="refreshCatalogue()" aria-label="Refresh catalogue"><b aria-hidden="true">↻</b>Refresh</button>
 </nav>
 </body>
 </html>

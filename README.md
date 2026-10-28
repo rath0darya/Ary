@@ -12,7 +12,8 @@ Termux-friendly Dar-E-Nijaat episode interface with an in-app player and downloa
 - Verifies the resulting MP4 with ffprobe.
 - Background download jobs with progress/status API.
 - OTT-style cinematic home page with a featured hero, horizontal poster rails, mobile-first layouts, and category/genre filters.
-- Local search across title, ID, year, type, genre, description and cast, plus year/genre/type/sort filters.
+- Catalogue discovery with synced desktop/mobile search, category chips, year/genre/format filters, title/year sorting, result counts, and a one-tap reset. Search covers title, ID, year, type, genre, description and cast.
+- Keyboard-friendly title cards and detail dialogs, with focus return on close; a five-action mobile navigation bar sized for touch and Android safe areas.
 - Premium, native-style transparent player overlay: double-tap left/right to skip 10 seconds, a timestamp-matched video preview while scrubbing, quality and speed controls, lock/unlock touch controls, orientation and fullscreen toggles, auto-hide overlays, and resume playback.
 - Episode cards provide prominent in-app Stream and Download buttons; playlist/quality inspection is a secondary action.
 - Stream and download actions use the backend `/api/stream-info` and `/api/download` endpoints; downloads appear in the in-page manager and are saved to the device by tapping **Save file to device**.
