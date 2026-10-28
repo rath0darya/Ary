@@ -68,6 +68,8 @@ JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.RLock()
 METADATA_JOB: dict[str, Any] = {"state":"idle","done":0,"total":0,"error":""}
 METADATA_LOCK = threading.RLock()
+DISCOVERY_JOB: dict[str, Any] = {"state": "idle", "error": "", "count": 0}
+DISCOVERY_LOCK = threading.RLock()
 
 # Persistent local catalogue. Normal requests read this instead of rediscovering ARY.
 CATALOGUE_FILE = CACHE_DIR / "catalogue.json"
@@ -84,6 +86,7 @@ def _load_catalogue_store() -> None:
             CACHE.update(data)
             CACHE.setdefault("series", [])
             CACHE.setdefault("details", {})
+            CACHE.setdefault("catalogue_seed_only", False)
             saved_episodes = CACHE.pop("episodes", {})
             if isinstance(saved_episodes, dict):
                 for key, value in saved_episodes.items():
@@ -100,6 +103,7 @@ def _save_catalogue_store() -> None:
             "schema_version": 1,
             "updated_at": time.time(),
             "series": CACHE.get("series", []),
+            "catalogue_seed_only": bool(CACHE.get("catalogue_seed_only", False)),
             "details": CACHE.get("details", {}),
             "episodes": {k: v for k, v in CACHE.items() if k.startswith("episodes:")},
         }
@@ -109,6 +113,59 @@ def _save_catalogue_store() -> None:
 
 
 _load_catalogue_store()
+
+
+def _seed_series() -> dict[str, Any]:
+    return {
+        "id": "dar-e-nijaat",
+        "title": "Dar-E-Nijaat",
+        "url": "https://arydigital.tv/drama/dar-e-nijaat/",
+        "image": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
+        "content_type": "Series",
+        "catalogue_genres": ["Drama", "Romance"],
+        "genres": ["Drama", "Romance"],
+        "description": "A drama series. Browse episodes and continue watching from your saved position.",
+    }
+
+
+def _run_discovery() -> None:
+    with DISCOVERY_LOCK:
+        DISCOVERY_JOB.update(state="running", error="")
+    try:
+        series = discover_series(force=True)
+        with DISCOVERY_LOCK:
+            DISCOVERY_JOB.update(state="completed", count=len(series), error="", completed_at=time.time())
+    except Exception as exc:
+        with DISCOVERY_LOCK:
+            DISCOVERY_JOB.update(state="error", error=str(exc), completed_at=time.time())
+        print("[DISCOVERY] background update failed:", exc, flush=True)
+
+
+def start_catalogue_discovery(force: bool = False) -> None:
+    with DISCOVERY_LOCK:
+        if DISCOVERY_JOB["state"] == "running":
+            return
+        if DISCOVERY_JOB["state"] == "completed" and not force:
+            return
+        DISCOVERY_JOB.update(state="running", error="", started_at=time.time())
+    threading.Thread(target=_run_discovery, name="catalogue-discovery", daemon=True).start()
+
+
+def catalogue_snapshot(refresh: bool = False) -> dict[str, Any]:
+    with CACHE_LOCK:
+        series = list(CACHE.get("series") or [])
+        seed_only = bool(CACHE.get("catalogue_seed_only", False))
+        if not series:
+            series = [_seed_series()]
+            CACHE["series"] = series
+            CACHE["catalogue_seed_only"] = True
+            seed_only = True
+            _save_catalogue_store()
+    if refresh or seed_only:
+        start_catalogue_discovery(force=refresh)
+    with DISCOVERY_LOCK:
+        discovery = dict(DISCOVERY_JOB)
+    return {"ok": True, "series": series, "discovery": discovery}
 
 def json_response(handler: BaseHTTPRequestHandler, payload: Any, status: int = 200):
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -667,18 +724,10 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
     # This installation is intentionally focused on Dar-E-Nijaat rather than
     # the full ARY+ catalogue. Official ARY Digital pages are the source of truth.
     if os.environ.get("ARY_SERIES_MODE", "discovery").strip().lower() == "dar-e-nijaat":
-        item = {
-            "id": "dar-e-nijaat",
-            "title": "Dar-E-Nijaat",
-            "url": "https://arydigital.tv/drama/dar-e-nijaat/",
-            "image": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
-            "content_type": "Series",
-            "catalogue_genres": ["Drama", "Romance"],
-            "genres": ["Drama", "Romance"],
-            "description": "A drama series. Browse episodes and continue watching from your saved position.",
-        }
+        item = _seed_series()
         with CACHE_LOCK:
             CACHE["series"] = [item]
+            CACHE["catalogue_seed_only"] = False
         _save_catalogue_store()
         return [item]
 
@@ -780,6 +829,7 @@ def discover_series(force: bool = False) -> list[dict[str, Any]]:
     result = sorted(result_items, key=lambda x: x["title"].lower())
     with CACHE_LOCK:
         CACHE["series"] = result
+        CACHE["catalogue_seed_only"] = False
     _save_catalogue_store()
     print("[DISCOVERY] pages=", len(visited), "titles=", len(result), flush=True)
     return result
@@ -1707,10 +1757,7 @@ class Handler(BaseHTTPRequestHandler):
                 })
 
             if path == "/api/series":
-                return json_response(self, {
-                    "ok": True,
-                    "series": discover_series(query.get("refresh", ["0"])[0] == "1"),
-                })
+                return json_response(self, catalogue_snapshot(query.get("refresh", ["0"])[0] == "1"))
 
             if path == "/api/catalogue/metadata":
                 if query.get("start", ["0"])[0] == "1":

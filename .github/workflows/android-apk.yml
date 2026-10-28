@@ -45,7 +45,16 @@ jobs:
           gradle-version: "8.13"
       - name: Package Python API and catalogue data for native app
         run: sh android/sync_sources.sh
+      - name: Configure stable app signing
+        env:
+          CINEWAVE_KEYSTORE_BASE64: ${{ secrets.CINEWAVE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$CINEWAVE_KEYSTORE_BASE64"
+          printf '%s' "$CINEWAVE_KEYSTORE_BASE64" | base64 --decode > android/app/cinewave-signing.keystore
       - name: Build debug APK
+        env:
+          CINEWAVE_KEYSTORE_PASSWORD: ${{ secrets.CINEWAVE_KEYSTORE_PASSWORD }}
         run: gradle --no-daemon --stacktrace -p android :app:assembleDebug
       - name: Upload APK as a temporary build artifact
         uses: actions/upload-artifact@v4
@@ -67,7 +76,16 @@ jobs:
           release_tag="cinewave-android-latest"
           test -s "$apk_path"
           cp "$apk_path" "$release_apk"
-          release_notes="Native CineWave Android APK built from commit ${SOURCE_SHA}. Build: ${RUN_URL}."
+          release_notes="$(cat <<EOF
+          ## CineWave for Android
+
+          Native Android app with an embedded on-device Python service. The app starts with its bundled catalogue and updates discovery in the background.
+
+          [Download the current APK](https://github.com/${GH_REPO}/releases/latest/download/CineWave.apk) · [Project site](https://${GH_REPO%%/*}.github.io/${GH_REPO#*/}/)
+
+          Built from commit ${SOURCE_SHA}. [Build details](${RUN_URL}).
+          EOF
+          )"
 
           if gh release view "$release_tag" --repo "$GH_REPO" >/dev/null 2>&1; then
             gh release upload "$release_tag" "$release_apk" --clobber --repo "$GH_REPO"

@@ -11,12 +11,34 @@ android {
         applicationId "com.arywatcher.app"
         minSdk 24
         targetSdk 35
-        versionCode 3
-        versionName "2.0.0"
+        versionCode 4
+        versionName "2.0.1"
         ndk { abiFilters "arm64-v8a", "x86_64" }
     }
 
     sourceSets { main { python.srcDirs = ["src/main/python"] } }
+
+    signingConfigs {
+        cinewave {
+            def stableKeystore = file("cinewave-signing.keystore")
+            def stablePassword = System.getenv("CINEWAVE_KEYSTORE_PASSWORD")
+            if (stableKeystore.exists() && stablePassword) {
+                storeFile stableKeystore
+                storePassword stablePassword
+                keyAlias "cinewave"
+                keyPassword stablePassword
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            def stableKeystore = file("cinewave-signing.keystore")
+            if (stableKeystore.exists() && System.getenv("CINEWAVE_KEYSTORE_PASSWORD")) {
+                signingConfig signingConfigs.cinewave
+            }
+        }
+    }
 
     packaging {
         resources {

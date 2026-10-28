@@ -8,3 +8,4 @@ output/
 .pytest_cache/
 .ary-episode-watcher/
 cleanup-backup-*/
+android/app/cinewave-signing.keystore

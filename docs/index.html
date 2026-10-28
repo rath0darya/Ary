@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090b12">
+  <meta name="description" content="CineWave is a native Android media companion with an embedded local service, catalogue discovery, playback, and downloads.">
+  <title>CineWave — Your screen, in flow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="site.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <div class="glow glow-a"></div><div class="glow glow-b"></div>
+  <header class="topbar wrap">
+    <a class="brand" href="#top" aria-label="CineWave home"><span class="brand-icon">▶</span><span>CINE<span>WAVE</span></span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav id="site-nav"><a href="#features">Features</a><a href="#android">Android app</a><a href="https://github.com/rath0darya/Ary">Source</a></nav>
+    <a class="nav-download" href="https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk">Get the APK <span>↗</span></a>
+  </header>
+  <main id="top">
+    <section class="hero wrap">
+      <div class="hero-copy"><div class="eyebrow"><i></i> BUILT FOR THE BIG MOMENTS</div>
+        <h1>Stories that<br><em>move with you.</em></h1>
+        <p class="lead">A native Android experience with a local media service, a living catalogue, and playback tools made for the way you watch.</p>
+        <div class="hero-actions"><a class="button primary" href="https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk">↓ &nbsp; Download for Android</a><a class="button secondary" href="https://github.com/rath0darya/Ary/releases">Release notes <span>↗</span></a></div>
+        <div class="hero-foot"><span><b>01</b> Native Android</span><span><b>02</b> On-device service</span><span><b>03</b> Open source</span></div>
+      </div>
+      <div class="phone-stage" aria-label="CineWave app preview">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="phone"><div class="phone-notch"></div><div class="app-top"><span>◀ CINE<span>WAVE</span></span><span>⌕　☰</span></div>
+          <div class="app-hero"><small>NOW DISCOVERING</small><h2>Find your<br>next story.</h2><p>Drama · Romance · New episodes</p><button>▶ &nbsp; Explore series</button></div>
+          <div class="app-row-title">Made for your evening <span>View all　›</span></div><div class="posters"><div class="poster poster-one"><b>AFTER<br>LIGHT</b></div><div class="poster poster-two"><b>THE<br>OTHER SIDE</b></div><div class="poster poster-three"><b>BLUE<br>HOUR</b></div></div>
+          <div class="app-status"><i></i> Your catalogue is ready <span>↻</span></div>
+          <div class="app-tabs"><span>⌂<small>Home</small></span><span>⌕<small>Discover</small></span><span>♡<small>Saved</small></span><span>◷<small>History</small></span></div>
+        </div>
+        <div class="float-card float-top"><span class="float-icon">✦</span><span><b>Ready on launch</b><small>Catalogue updates in background</small></span></div>
+        <div class="float-card float-bottom"><span class="signal">● ● ●</span><span><b>Made for Android</b><small>Native playback experience</small></span></div>
+      </div>
+    </section>
+    <section class="ticker"><div class="wrap ticker-inner"><span>YOUR DEVICE, YOUR LIBRARY</span><b>DISCOVER</b><i>✳</i><b>PLAY</b><i>✳</i><b>CONTINUE</b><i>✳</i><b>REPEAT</b></div></section>
+    <section id="features" class="features wrap section-pad"><div class="section-heading"><div><div class="eyebrow">THE EXPERIENCE</div><h2>Made to feel<br><em>effortless.</em></h2></div><p>From first launch to the next episode, CineWave keeps the useful parts close and the waiting out of your way.</p></div>
+      <div class="feature-grid">
+        <article class="feature-card feature-wide"><div class="card-art art-catalogue"><span class="art-label">YOUR COLLECTION</span><div class="mini-shelf"><i>✦</i><i>◉</i><i>✧</i><i>◒</i></div><span class="art-dot"></span></div><div class="feature-text"><span class="number">01 / DISCOVER</span><h3>A catalogue that shows up fast.</h3><p>Start browsing straight away. Catalogue discovery continues quietly in the background, with fresh results appearing as they arrive.</p></div></article>
+        <article class="feature-card"><div class="card-art art-player"><div class="play-ring">▶</div><div class="waveform"></div><span>00:34　━━━━━━　42:18</span></div><div class="feature-text"><span class="number">02 / WATCH</span><h3>Playback in your hands.</h3><p>Resume where you left off, adjust playback, and keep the controls focused on the screen.</p></div></article>
+        <article class="feature-card"><div class="card-art art-local"><span class="local-orbit">◉</span><span class="local-pill">127.0.0.1</span><span class="local-label">ON-DEVICE SERVICE</span></div><div class="feature-text"><span class="number">03 / PRIVATE BY DESIGN</span><h3>The service travels inside the app.</h3><p>No separate server to find or configure. CineWave starts its Python media service on your Android device.</p></div></article>
+      </div>
+    </section>
+    <section id="android" class="download-section"><div class="wrap download-card"><div><div class="eyebrow">CINEWAVE FOR ANDROID</div><h2>Your next watch<br>is one tap away.</h2><p>Get the latest APK from the official GitHub release. Updates use the same signing identity for smooth installs.</p><a class="button light" href="https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk">↓ &nbsp; Download latest APK</a><small class="download-meta">Android 7.0+ · ARM64 and x86_64 · Free and open source</small></div><div class="download-mark"><span>▶</span><b>CINE<br>WAVE</b><i></i></div></div></section>
+  </main>
+  <footer class="wrap footer"><a class="brand" href="#top"><span class="brand-icon">▶</span><span>CINE<span>WAVE</span></span></a><p>Made for stories worth staying up for.</p><div><a href="https://github.com/rath0darya/Ary">GitHub</a><a href="https://github.com/rath0darya/Ary/releases">Releases</a><a href="https://github.com/rath0darya/Ary/blob/main/README.md">Documentation</a></div><small>© <span id="year"></span> CineWave · Community project</small></footer>
+</body>
+</html>

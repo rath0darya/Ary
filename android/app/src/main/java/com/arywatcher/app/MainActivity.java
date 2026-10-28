@@ -105,6 +105,9 @@ public class MainActivity extends Activity {
     private PlayerView playerView;
     private Runnable downloadPoll;
     private Runnable searchUpdate;
+    private Runnable cataloguePoll;
+    private String discoveryState = "idle";
+    private String discoveryError = "";
     private String pendingExportUrl = "";
     private String pendingExportTitle = "";
 
@@ -201,12 +204,41 @@ public class MainActivity extends Activity {
     }
 
     private void loadCatalogue(boolean refresh) {
-        showLoading("Loading your collection", "Finding available titles…");
+        if (allSeries.length() == 0) showLoading("Loading your collection", "Starting the on-device catalogue…");
         api("api/series" + (refresh ? "?refresh=1" : ""), result -> {
             allSeries = result.optJSONArray("series");
             if (allSeries == null) allSeries = new JSONArray();
+            JSONObject discovery = result.optJSONObject("discovery");
+            if (discovery != null) {
+                discoveryState = discovery.optString("state", "idle");
+                discoveryError = discovery.optString("error", "");
+            }
             showHome();
+            scheduleCataloguePoll();
         }, error -> showError("Couldn’t load the catalogue", error, () -> loadCatalogue(refresh)));
+    }
+
+    private void scheduleCataloguePoll() {
+        if (cataloguePoll != null) main.removeCallbacks(cataloguePoll);
+        if (!"running".equals(discoveryState)) return;
+        cataloguePoll = () -> api("api/series", result -> {
+            JSONArray updated = result.optJSONArray("series");
+            JSONObject discovery = result.optJSONObject("discovery");
+            if (discovery != null) {
+                discoveryState = discovery.optString("state", "idle");
+                discoveryError = discovery.optString("error", "");
+            }
+            if (updated != null && !updated.toString().equals(allSeries.toString())) {
+                allSeries = updated;
+                if (seriesGrid != null) renderSeriesGrid(seriesGrid, searchQuery);
+            }
+            if (status != null) renderSeriesGrid(seriesGrid, searchQuery);
+            scheduleCataloguePoll();
+        }, error -> {
+            cataloguePoll = this::loadCatalogue;
+            main.postDelayed(cataloguePoll, 5000);
+        });
+        main.postDelayed(cataloguePoll, 4000);
     }
 
     private void showHome() {
@@ -300,7 +332,12 @@ public class MainActivity extends Activity {
             String haystack = (item.optString("title") + " " + item.optString("id") + " " + item.optString("description") + " " + item.optString("cast") + " " + item.optString("year") + " " + item.optString("content_type") + " " + genres(item)).toLowerCase(Locale.ROOT);
             if (needle.isEmpty() || haystack.contains(needle)) matches.add(item);
         }
-        if (status != null) status.setText(matches.size() + (matches.size() == 1 ? " title" : " titles"));
+        if (status != null) {
+            String label = matches.size() + (matches.size() == 1 ? " title" : " titles");
+            if ("running".equals(discoveryState)) label += " · updating catalogue…";
+            else if ("error".equals(discoveryState) && !discoveryError.isEmpty()) label += " · update paused; refresh to retry";
+            status.setText(label);
+        }
         if (matches.isEmpty()) {
             TextView empty = text("No titles match. Try another search or category.", 14, MUTED, false);
             empty.setPadding(dp(8), dp(28), dp(8), dp(28));
@@ -856,6 +893,7 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() {
         if (downloadPoll != null) main.removeCallbacks(downloadPoll);
         if (searchUpdate != null) main.removeCallbacks(searchUpdate);
+        if (cataloguePoll != null) main.removeCallbacks(cataloguePoll);
         releasePlayer();
         backendExecutor.shutdownNow();
         apiExecutor.shutdownNow();

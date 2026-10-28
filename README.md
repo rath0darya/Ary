@@ -1,135 +1,68 @@
-# Dar-E-Nijaat Episode Watcher
+<div align="center">
 
-Termux-friendly Dar-E-Nijaat episode interface with an in-app player and download manager. Playback and downloading require an accessible direct media source you are authorized to use; an episode webpage URL is not itself a video stream.
+<img src="docs/banner.svg" alt="CineWave — native Android streaming companion" width="100%">
 
-## Features
+### A native Android experience for stories worth staying up for.
 
-- Series discovery and metadata enrichment from configured catalogue sources.
-- Dar-E-Nijaat uses a canonical repository mapping of 20 real episode IDs and saved HLS source URLs; other catalogue entries are discovered at runtime.
-- Inspects the HLS master playlist and exposes every advertised resolution.
-- Automatically selects the highest advertised video resolution.
-- Downloads with FFmpeg stream copy; no quality-lowering re-encode.
-- Verifies the resulting MP4 with ffprobe.
-- Background download jobs with progress/status API.
-- OTT-style cinematic home page with a featured hero, horizontal poster rails, mobile-first layouts, and category/genre filters.
-- Catalogue discovery with synced desktop/mobile search, category chips, year/genre/format filters, title/year sorting, result counts, and a one-tap reset. Search covers title, ID, year, type, genre, description and cast.
-- Keyboard-friendly title cards and detail dialogs, with focus return on close; a five-action mobile navigation bar sized for touch and Android safe areas.
-- Premium, native-style transparent player overlay: double-tap left/right to skip 10 seconds, a timestamp-matched video preview while scrubbing, quality and speed controls, lock/unlock touch controls, orientation and fullscreen toggles, auto-hide overlays, and resume playback.
-- Episode cards provide prominent in-app Stream and Download buttons; playlist/quality inspection is a secondary action.
-- Stream and download actions use the backend `/api/stream-info` and `/api/download` endpoints; downloads appear in the in-page manager and are saved to the device by tapping **Save file to device**.
-- Browser HLS playback using HLS.js when the source permits browser playback.
-- No external AI/API service.
-- API key is read from ARY_API_KEY or ~/.ary-episode-watcher/api-key.txt; it is never displayed.
-- Browser catalogue and episode state is cached for the current tab so returning from another app can reuse saved data instead of flashing an empty loading screen. Hiding the tab saves playback position without incorrectly marking the episode as finished.
-- Designed for Android/Termux, with optional Termux wake-lock support and a background server mode.
+**[Project site](https://rath0darya.github.io/Ary/)** · **[Download the latest APK](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk)** · **[All releases](https://github.com/rath0darya/Ary/releases)**
 
-Use the downloader only for media you are authorized to download. The website uses an in-app player and does not redirect users to provider-branded playback pages.
+[![Android APK](https://img.shields.io/badge/Android-Download%20APK-35c878?style=for-the-badge&logo=android&logoColor=white)](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk)
+[![Latest release](https://img.shields.io/github/v/release/rath0darya/Ary?display_name=tag&style=for-the-badge&color=ff416b)](https://github.com/rath0darya/Ary/releases)
 
-## Requirements
+</div>
 
-Termux packages:
+## CineWave
 
-    pkg update
-    pkg install python ffmpeg
+CineWave is a native Android media companion with an embedded Python service. It starts with a bundled catalogue entry, then discovers more titles in the background so the home screen is available without waiting for a full crawl. A lightweight responsive web interface is also included for desktop and mobile browsers.
 
-Optional Android storage permission:
+## What it does
 
-    termux-setup-storage
+- Native Android UI with catalogue search, categories, title details and episode browsing.
+- Embedded on-device Python API; no separate server setup is required by the Android app.
+- Background catalogue discovery with local persistent cache and immediate first-launch content.
+- Media3 playback with HLS support, resume position, playback speed and seeking controls.
+- Download jobs and stream inspection through the local API.
+- Responsive browser UI with catalogue and playback tools.
+- Android APKs are published to the stable [CineWave Android release](https://github.com/rath0darya/Ary/releases/latest).
 
-Python dependencies:
+## Install on Android
 
-    pip install -r requirements.txt
+Download [`CineWave.apk`](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk) from the latest release and install it. New releases use a persistent signing key and can update that installation in place.
 
-## Run the website
+**One-time upgrade note:** APKs published before stable signing used temporary build keys. Android will reject an update over one of those older installs with “App not installed as package conflicts with an existing package.” Uninstall that old app once, then install the current APK. Your Android system may remove the app’s private data when it is uninstalled.
 
-    python ary_episode_watcher.py
+## Run the browser app with Python
 
-Then open http://127.0.0.1:8787
+Requirements: Python 3.10+ and FFmpeg. Install dependencies and start the bundled service:
 
-For a custom port:
+```sh
+python -m pip install -r requirements.txt
+python ary_episode_watcher.py
+```
 
-    ARYWEB_PORT=8787 python ary_episode_watcher.py
+Then open <http://127.0.0.1:8787>. To choose another port, set `ARYWEB_PORT`, for example `ARYWEB_PORT=8788 python ary_episode_watcher.py`.
 
 ## API
 
-- GET /api/health
-- GET /api/series
-- GET /api/episodes?series=<series-id>
-- GET /api/stream-info?series=<series-id>&episode=<episode-id>
-- GET /api/download?series=<series-id>&episode=<episode-id>&number=<n>&title=<title>
-- GET /api/download/<job-id>
-- GET /api/catalogue/metadata?start=1
-- GET /api/catalogue/metadata
+- `GET /api/health`
+- `GET /api/series` — returns the current catalogue immediately; discovery status is in `discovery.state`.
+- `GET /api/series/detail?series=<series-id>`
+- `GET /api/episodes?series=<series-id>`
+- `GET /api/stream-info?series=<series-id>&episode=<episode-id>`
+- `GET /api/download?series=<series-id>&episode=<episode-id>&number=<n>&title=<title>`
+- `GET /api/download/<job-id>`
+- `GET /api/catalogue/metadata?start=1`
 
-The download endpoint intentionally has no quality parameter. The server chooses the highest HLS variant advertised by the source.
+The download endpoint chooses the highest HLS variant advertised by the source. Use it only for media you are authorized to access and download.
 
-## Storage
+## Project structure
 
-Default output directory:
+```text
+android/                 Native Android app and embedded Python packaging
+ary_episode_watcher.py   Local API, catalogue, playback and download service
+web/                     Responsive browser application
+docs/                    Responsive project website for GitHub Pages
+tests/                   Python unit tests
+```
 
-    /sdcard/Movies/ARY Episode Watcher
-
-Override with:
-
-    export ARY_DOWNLOAD_DIR="$HOME/storage/movies/ARY Episode Watcher"
-
-## API key
-
-Preferred:
-
-    export ARY_API_KEY='your-key'
-
-or:
-
-    mkdir -p ~/.ary-episode-watcher
-    printf '%s\n' 'your-key' > ~/.ary-episode-watcher/api-key.txt
-    chmod 600 ~/.ary-episode-watcher/api-key.txt
-
-The key is never written into the repository.
-
-## Notes about quality
-
-The app selects the highest HLS resolution, but resolution alone does not guarantee visually superior source quality. The stream inspector reports width, height, advertised bandwidth, average bandwidth, codec, and playlist URL so the selected source can be verified. FFmpeg uses stream copy and therefore does not improve an already-compressed source.
-
-## Project layout
-
-    ary_episode_watcher.py
-    live_check.py
-    web/index.html
-    requirements.txt
-    tests/test_core.py
-    tests/test_dar_e_nijaat.py
-    dar-e-nijaat-all-m3u8.json
-    run.sh
-    .gitignore
-
-
-## Modern web UI and Termux menu
-
-The responsive web interface includes catalogue search and filters, poster art with proxy/direct-image fallback, a premium in-app player, a download manager panel, live size/speed updates, and optional browser notifications. The player keeps settings inside the transparent video overlay and does not expose external provider redirect buttons. Download notifications require granting permission in the browser; the **Save file to device** link still needs a user tap so Android/browser download handling can take over. The tool does not record the live broadcast.
-
-Install the Termux commands from the repository directory:
-
-    chmod +x install-termux.sh
-    ./install-termux.sh
-
-Then use:
-
-    arymenu
-
-Or start the WebUI directly in the background:
-
-    aryweb
-
-Open http://127.0.0.1:8787 in the browser. The command supports `aryweb --status`, `aryweb --logs`, `aryweb --restart`, `aryweb --stop`, and `aryweb --foreground`. When the Termux:API command `termux-wake-lock` is installed, the launcher requests a wake lock to reduce CPU suspension while the server runs in the background. Android battery restrictions, force-stop, or OEM process killing can still stop a local server; disable battery optimization for Termux if background reliability matters. The menu also provides server health, catalogue refresh, a download-folder listing, and the local web address.
-
-
-## Standalone Android APK (no Termux)
-
-The repository includes a standalone native **CineWave** Android app project under `android/`. Its Android catalogue and episode screens use native views, and Media3 ExoPlayer handles native HLS/MP4 playback. An embedded Python runtime supplies the catalogue and stream APIs; FFmpegKit handles supported downloads. The APK does not wrap the web interface in a WebView.
-
-The workflow publishes every successful build to the stable [CineWave Android release](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk), replacing the previous APK asset. It also keeps a temporary Actions artifact for 7 days. If Android rejects an update because the debug signing key differs, uninstall the older debug build before installing the new one.
-
-The APK still needs internet for online catalogue and media sources. Its cache and working downloads are app-private; completed files are exported to Android Downloads. Android 7.0 or newer is supported on arm64-v8a and x86_64 devices.
-
-See [android/README.md](android/README.md) for build details.
+The app package identifier is `com.arywatcher.app`. Release assets and update information are listed on the [Releases page](https://github.com/rath0darya/Ary/releases).
