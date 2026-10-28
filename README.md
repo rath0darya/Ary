@@ -17,10 +17,10 @@ CineWave is a native Android media companion with an embedded Python service. It
 
 ## What it does
 
-- Native Android UI with catalogue search, categories, title details and episode browsing.
+- Native Android UI with catalogue search, categories, title details and a live-refreshing episode guide.
 - Embedded on-device Python API; no separate server setup is required by the Android app.
-- Background catalogue discovery with local persistent cache and immediate first-launch content.
-- Media3 playback with HLS support, resume position, playback speed and seeking controls.
+- Background title and episode discovery with local persistence; the Dar-E-Nijaat episode list is read from the current official ARY guide instead of being limited to its original 20-item seed.
+- Native Media3 video player with seek bar, ±10 second taps and buttons, playback speed, audio/subtitle track selection, video quality, fit/zoom/stretch, volume and brightness gestures, lock, fullscreen/landscape, picture-in-picture, auto-next, and saved resume position.
 - Download jobs and stream inspection through the local API.
 - Responsive browser UI with catalogue and playback tools.
 - Android APKs are published to the stable [CineWave Android release](https://github.com/rath0darya/Ary/releases/latest).
@@ -66,3 +66,5 @@ tests/                   Python unit tests
 ```
 
 The app package identifier is `com.arywatcher.app`. Release assets and update information are listed on the [Releases page](https://github.com/rath0darya/Ary/releases).
+
+When an official episode is listed but ARY does not expose a direct stream to the app, CineWave marks it as an official-page episode and opens ARY’s page instead of presenting a broken in-app play or download action.

@@ -383,7 +383,7 @@ main{width:min(1480px,100%);padding:0 clamp(16px,4vw,56px) 110px}
 
 <script>
 const $=id=>document.getElementById(id);
-let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,catalogueTimer=0,catalogueState="idle",locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1,lastEpisodeRefreshAt=0,featuredSeriesId=null,lastDetailTrigger=null;
+let series=[],activeCategory="all",currentSeries=null,episodes=[],currentEpisode=null,currentIndex=-1,hls=null,previewHls=null,pipStreamUrl="",lastPipSyncAt=0,variants=[],uiTimer=0,metadataTimer=0,catalogueTimer=0,catalogueState="idle",episodePollTimer=0,episodeDiscoveryState="idle",locked=false,lastTap={left:0,right:0},gestureState=null,brightness=1,volumeBeforeMute=.8,playerHideTimer=0,stageTapTimer=0,lastStageTap={time:0,side:null},seekingTimeline=false,orientationFallback=false,landscapeMode=false,previewTargetTime=0,fillScreen=false,currentQualityIndex=-1,lastEpisodeRefreshAt=0,featuredSeriesId=null,lastDetailTrigger=null;
 const categories=[["all","All"],["drama","Drama"],["telefilms","Telefilms"],["shows","Shows"],["movies","Movies"],["series","Series"],["comedy","Comedy"],["romance","Romance"],["action","Action"],["sports","Sports"],["news","News"]];
 
 async function get(path){const r=await fetch(path,{cache:"no-store",headers:{"Accept":"application/json"}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d}
@@ -440,16 +440,19 @@ async function resumeWatch(v){await openSeries(v.seriesId);if(v.id){const e=epis
 async function openSeries(id){try{lastDetailTrigger=document.activeElement;$("detail").classList.add("open");document.body.style.overflow="hidden";$("detail").querySelector(".close").focus();episodes=[];$("episodeSearch").value="";$("episodeCount").textContent="";$("episodeGrid").innerHTML='<div class="loading">Loading episode catalogue…</div>';const d=await get("/api/series/detail?series="+encodeURIComponent(id));currentSeries=d.series||d;$("detailType").textContent=typeOf(currentSeries);$("detailTitle").textContent=currentSeries.title||"Untitled";$("detailFacts").innerHTML=[yearOf(currentSeries),typeOf(currentSeries),...genresOf(currentSeries)].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join("");$("detailDesc").textContent=cleanUiText(currentSeries.description||"");$("detailCast").textContent=currentSeries.cast?("Cast: "+currentSeries.cast):"";setBackdrop($("detailHero"),poster(currentSeries));$("detailPlay").onclick=()=>episodes[0]&&playEpisode(episodes[0]);await loadEpisodes()}catch(e){toast(e.message)}}
 async function loadEpisodes(force=false){
  if(!currentSeries)return;
+ clearTimeout(episodePollTimer);
  const cacheKey="ary-episodes:"+currentSeries.id;const cached=readSessionCache(cacheKey);
  if(!force&&Array.isArray(cached)){episodes=sortEpisodesLatestFirst(cached);renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s")+" · saved"}
  else if(!episodes.length)$("episodeGrid").innerHTML='<div class="loading">Loading episode catalogue…</div>';
  try{
   const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id)+(force?"&refresh=1":""));
-  episodes=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);writeSessionCache(cacheKey,episodes);lastEpisodeRefreshAt=Date.now();
+  episodeDiscoveryState=d.discovery?.state||"idle";episodes=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);writeSessionCache(cacheKey,episodes);lastEpisodeRefreshAt=Date.now();
   renderEpisodes();$("episodeCount").textContent=episodes.length+" video"+(episodes.length===1?"":"s");
-  if(force)toast("Episode catalogue refreshed.");
+  scheduleEpisodeRefresh();
+  if(force)toast(episodeDiscoveryState==="running"?"Checking ARY for newer episodes…":"Episode guide refreshed.");
  }catch(e){if(episodes.length){toast("Connection paused · showing saved episodes")}else $("episodeGrid").innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
+function scheduleEpisodeRefresh(){clearTimeout(episodePollTimer);if(episodeDiscoveryState!=="running"||!currentSeries)return;episodePollTimer=setTimeout(async()=>{try{const d=await get("/api/episodes?series="+encodeURIComponent(currentSeries.id));episodeDiscoveryState=d.discovery?.state||"idle";const updated=sortEpisodesLatestFirst(Array.isArray(d.episodes)?d.episodes:[]);if(JSON.stringify(updated)!==JSON.stringify(episodes)){episodes=updated;writeSessionCache("ary-episodes:"+currentSeries.id,episodes);renderEpisodes()}$("episodeCount").textContent=episodes.length+" videos"+(episodeDiscoveryState==="running"?" · checking for new episodes…":episodeDiscoveryState==="error"?" · refresh failed":"");scheduleEpisodeRefresh()}catch{episodePollTimer=setTimeout(()=>loadEpisodes(false),6000)}},2500)}
 function renderEpisodes(){
  const q=($("episodeSearch").value||"").toLowerCase();
  const list=episodes.filter(e=>!q||[e.title,e.number,e.date,e.description].join(" ").toLowerCase().includes(q));
@@ -464,10 +467,11 @@ function renderEpisodes(){
   const title=document.createElement("div");title.className="ep-title";title.textContent=e.title||"Video";
   const date=document.createElement("div");date.className="ep-date";date.textContent=e.date||"";
   const actions=document.createElement("div");actions.className="ep-actions";
-  const stream=document.createElement("button");stream.className="watch";stream.type="button";stream.textContent="▶ Stream";stream.setAttribute("aria-label","Stream "+(e.title||("episode "+e.number)));stream.addEventListener("click",()=>playEpisode(e,watchState(e.id)?.position||0));
-  const download=document.createElement("button");download.className="download";download.type="button";download.textContent="↓ Download";download.setAttribute("aria-label","Download "+(e.title||("episode "+e.number)));download.addEventListener("click",()=>downloadEpisode(e.id,download));
+  const officialOnly=!!e.official_only&&!e.stream;
+  const stream=document.createElement("button");stream.className="watch";stream.type="button";stream.textContent=officialOnly?"↗ Watch on ARY":"▶ Stream";stream.setAttribute("aria-label",(officialOnly?"Open official page for ":"Stream ")+(e.title||("episode "+e.number)));stream.addEventListener("click",()=>officialOnly?window.open(e.official_url,"_blank","noopener,noreferrer"):playEpisode(e,watchState(e.id)?.position||0));
+  const download=document.createElement("button");download.className="download";download.type="button";download.textContent=officialOnly?"Official page only":"↓ Download";download.disabled=officialOnly;download.setAttribute("aria-label",(officialOnly?"No in-app stream for ":"Download ")+(e.title||("episode "+e.number)));if(!officialOnly)download.addEventListener("click",()=>downloadEpisode(e.id,download));
   const find=document.createElement("button");find.className="download find-playlists";find.type="button";find.textContent="⌕ Inspect available playlists / quality";find.addEventListener("click",()=>inspectEpisodePlaylists(e,find));
-  actions.append(stream,download,find);
+  actions.append(stream,download);if(!officialOnly)actions.append(find);
   const status=document.createElement("div");status.id="status-"+e.id;status.className="status";
   const box=document.createElement("div");box.className="playlist-results";box.style.cssText="display:grid;gap:6px;margin-top:8px;overflow-wrap:anywhere";
   body.append(title,date,actions,status,box);card.append(thumb,body);grid.appendChild(card);
@@ -612,7 +616,7 @@ function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");
 document.addEventListener("keydown",e=>{const modal=$("liveModal");if(e.key==="Escape"&&modal?.classList.contains("open"))closeLivePlayer()});const liveModal=$("liveModal");if(liveModal)liveModal.addEventListener("click",e=>{if(e.target===liveModal)closeLivePlayer()});
 document.addEventListener("click",e=>{const c=e.target.closest(".series-card");if(c){openSeries(c.dataset.id);return}const w=e.target.closest(".continue-card");if(w){const v=watchState(w.dataset.watchId);if(v)resumeWatch(v);return}});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if($("player").classList.contains("open"))closePlayer();else if($("detail").classList.contains("open"))closeDetail()});
-window.addEventListener("pagehide",()=>{if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)});setInterval(()=>{if(!document.hidden&&currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)},60000);
+window.addEventListener("pagehide",()=>{clearTimeout(episodePollTimer);if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)});document.addEventListener("visibilitychange",()=>{if(document.hidden){clearTimeout(episodePollTimer);if(currentEpisode)saveWatch(currentEpisode,$("video").currentTime||0,false)}else{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)}});window.addEventListener("pageshow",()=>{renderContinue();resumeDownloadPolling();if(currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)});setInterval(()=>{if(!document.hidden&&currentSeries&&$("detail").classList.contains("open")&&Date.now()-lastEpisodeRefreshAt>=300000)loadEpisodes(true)},60000);
 bindPlayerControls();
 renderDownloadJobs();
 loadSeries();

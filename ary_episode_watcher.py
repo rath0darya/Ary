@@ -1100,6 +1100,87 @@ def episode_auto_check_loop() -> None:
         time.sleep(30)
 
 
+DAR_E_NIJAAT_IDS = {
+    "dar-e-nijaat", "dar_e_nijaat", "dar-e-nijaat-series", "6a57868b5bf57c474cc00a50"
+}
+
+
+def _canonical_dar_episodes() -> list[dict[str, Any]]:
+    source_file = APP_DIR / "dar-e-nijaat-all-m3u8.json"
+    try:
+        source_data = json.loads(source_file.read_text(encoding="utf-8"))
+        saved_items = source_data.get("episodes", [])
+        if not isinstance(saved_items, list) or not saved_items:
+            raise ValueError("canonical episode list is empty")
+        episodes: list[dict[str, Any]] = []
+        for item in saved_items:
+            number = int(item["episode"])
+            episode_id = str(item["id"])
+            stream_url = str(item["m3u8"])
+            if not episode_id or not stream_url.startswith(("https://", "http://")):
+                raise ValueError(f"invalid canonical data for episode {number}")
+            episodes.append({
+                "id": episode_id,
+                "api_id": episode_id,
+                "number": number,
+                "title": f"Dar-E-Nijaat Episode {number}",
+                "date": None,
+                "thumbnail": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
+                "stream": stream_url,
+                "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/",
+                "official_only": False,
+                "description": "Verified saved HLS source; new episodes are checked against the official ARY episode guide.",
+                "next_episode_id": None,
+                "raw": {"source": "dar-e-nijaat-all-m3u8.json", "episode": number},
+            })
+        return sorted(episodes, key=lambda episode: episode["number"])
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Unable to load canonical Dar-E-Nijaat episode data: {exc}") from exc
+
+
+def episode_catalogue_snapshot(series_id: str, refresh: bool = False) -> dict[str, Any]:
+    key = _series_key(series_id)
+    with CACHE_LOCK:
+        episodes = list(CACHE.get(key) or [])
+        if series_id.lower() in DAR_E_NIJAAT_IDS and not episodes:
+            episodes = _canonical_dar_episodes()
+            CACHE[key] = episodes
+            _save_catalogue_store()
+        checked_at = float(CACHE.get("dar_e_nijaat_checked_at", 0) or 0)
+    if series_id.lower() not in DAR_E_NIJAAT_IDS:
+        return {"ok": True, "series_id": series_id, "episodes": catalogue(series_id, refresh)}
+
+    with EPISODE_DISCOVERY_LOCK:
+        job = EPISODE_DISCOVERY_JOBS.setdefault(series_id.lower(), {"state": "idle", "error": ""})
+        stale = time.time() - checked_at >= 300
+        should_start = refresh or stale
+        if should_start and job.get("state") != "running" and (refresh or job.get("state") != "error"):
+            job.update(state="running", error="", started_at=time.time())
+            threading.Thread(target=_refresh_episode_catalogue, args=(series_id,), daemon=True).start()
+        discovery = dict(job)
+    return {"ok": True, "series_id": series_id, "episodes": episodes, "discovery": discovery}
+
+
+EPISODE_DISCOVERY_JOBS: dict[str, dict[str, Any]] = {}
+EPISODE_DISCOVERY_LOCK = threading.RLock()
+
+
+def _refresh_episode_catalogue(series_id: str) -> None:
+    key = series_id.lower()
+    try:
+        episodes = catalogue(series_id, force=True)
+        with EPISODE_DISCOVERY_LOCK:
+            EPISODE_DISCOVERY_JOBS.setdefault(key, {}).update(
+                state="completed", error="", count=len(episodes), completed_at=time.time()
+            )
+    except Exception as exc:
+        with EPISODE_DISCOVERY_LOCK:
+            EPISODE_DISCOVERY_JOBS.setdefault(key, {}).update(
+                state="error", error=str(exc), completed_at=time.time()
+            )
+        print("[DAR-E-NIJAAT] Background episode refresh failed:", exc, flush=True)
+
+
 def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
     series_id = series_id.strip()
     if not series_id:
@@ -1108,43 +1189,9 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
 
     # Keep verified episode IDs/HLS sources as the offline baseline, but refresh
     # the official ARY episode guide so newly published episodes are discovered.
-    dar_e_nijaat_aliases = {
-        "dar-e-nijaat",
-        "dar_e_nijaat",
-        "dar-e-nijaat-series",
-        "6a57868b5bf57c474cc00a50",
-    }
-    if series_id.lower() in dar_e_nijaat_aliases:
-        source_file = APP_DIR / "dar-e-nijaat-all-m3u8.json"
-        try:
-            source_data = json.loads(source_file.read_text(encoding="utf-8"))
-            saved_items = source_data.get("episodes", [])
-            if not isinstance(saved_items, list) or not saved_items:
-                raise ValueError("canonical episode list is empty")
-            episodes: list[dict[str, Any]] = []
-            for item in saved_items:
-                number = int(item["episode"])
-                episode_id = str(item["id"])
-                stream_url = str(item["m3u8"])
-                if not episode_id or not stream_url.startswith(("https://", "http://")):
-                    raise ValueError(f"invalid canonical data for episode {number}")
-                episodes.append({
-                    "id": episode_id,
-                    "api_id": episode_id,
-                    "number": number,
-                    "title": f"Dar-E-Nijaat Episode {number}",
-                    "date": None,
-                    "thumbnail": "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
-                    "stream": stream_url,
-                    "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/",
-                    "official_only": False,
-                    "description": "Verified saved HLS source; new episodes are checked against the official ARY episode guide.",
-                    "next_episode_id": None,
-                    "raw": {"source": "dar-e-nijaat-all-m3u8.json", "episode": number},
-                })
-            episodes.sort(key=lambda episode: episode["number"])
-        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise RuntimeError(f"Unable to load canonical Dar-E-Nijaat episode data: {exc}") from exc
+    if series_id.lower() in DAR_E_NIJAAT_IDS:
+        source_data = json.loads((APP_DIR / "dar-e-nijaat-all-m3u8.json").read_text(encoding="utf-8"))
+        episodes = _canonical_dar_episodes()
 
         # Cache the live check for five minutes to avoid hammering ARY. A forced
         # refresh bypasses this window; if ARY is temporarily unavailable, keep
@@ -1265,6 +1312,44 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
             series_page = http_text(series_page_url, {"Referer": "https://arydigital.tv/"}, timeout=20)
             for match in re.finditer(r"(?:episode[-/](\d+))", html.unescape(series_page), re.I):
                 candidate_numbers.add(int(match.group(1)))
+            # The current ARY Digital episode guide embeds structured records
+            # (including recent episodes) directly in its page. The older ARY+
+            # pagination API can reject unauthenticated calls, so consume this
+            # official page as the discovery source and retain canonical HLS
+            # entries when the page has no direct media URL.
+            for raw in _extract_episode_catalogue(series_page, source_data["seriesId"]):
+                normalized = normalise_episode(raw)
+                try:
+                    number = int(normalized.get("number"))
+                except (TypeError, ValueError):
+                    continue
+                raw_id = str(normalized.get("id") or "").strip()
+                if number <= 20 or number in known_numbers or not raw_id:
+                    continue
+                episode_url = f"https://arydigital.tv/drama/dar-e-nijaat/episode-{number}/"
+                stream_url = next((candidate for candidate in (
+                    _media_url(raw.get("videoSource"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
+                    _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
+                ) if _is_vod_storage_url(candidate)), None)
+                episode_id = f"arydigital-{raw_id}"
+                episodes.append({
+                    "id": episode_id,
+                    "api_id": raw_id,
+                    "number": number,
+                    "title": normalized.get("title") or f"Dar-E-Nijaat Episode {number}",
+                    "date": normalized.get("date"),
+                    "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
+                    "stream": stream_url,
+                    "official_url": episode_url,
+                    "official_only": not bool(stream_url),
+                    "description": "Latest episode listed on the official ARY Digital episode guide.",
+                    "next_episode_id": None,
+                    "raw": raw,
+                })
+                known_numbers.add(number)
+                api_seen_ids.add(episode_id)
+                api_seen_numbers.add(number)
         except Exception as exc:
             print("[DAR-E-NIJAAT] Official episode guide refresh failed:", exc, flush=True)
 
@@ -1781,11 +1866,9 @@ class Handler(BaseHTTPRequestHandler):
                 sid = query.get("series", [""])[0].strip()
                 if not sid:
                     return json_response(self, {"ok": False, "error": "series is required"}, 400)
-                return json_response(self, {
-                    "ok": True,
-                    "series_id": sid,
-                    "episodes": catalogue(sid, query.get("refresh", ["0"])[0] == "1"),
-                })
+                return json_response(self, episode_catalogue_snapshot(
+                    sid, query.get("refresh", ["0"])[0] == "1"
+                ))
 
             if path == "/api/stream-info":
                 sid = query.get("series", [""])[0].strip()
@@ -1793,6 +1876,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not sid or not eid:
                     return json_response(self, {"ok": False, "error": "series and episode are required"}, 400)
                 episode = find_episode(sid, eid)
+                if episode.get("official_only") and not episode.get("stream"):
+                    return json_response(self, {
+                        "ok": False,
+                        "error": "This episode is listed on ARY, but no direct stream is exposed for in-app playback.",
+                        "official_url": episode.get("official_url"),
+                    }, 409)
                 return json_response(self, {
                     "ok": True,
                     "episode": episode,

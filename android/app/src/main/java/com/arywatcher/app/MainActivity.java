@@ -1,9 +1,11 @@
 package com.arywatcher.app;
 
 import android.app.Activity;
+import android.media.AudioManager;
 import android.app.DownloadManager;
 import android.app.PictureInPictureParams;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -19,6 +21,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Rational;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -30,6 +33,8 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.PopupMenu;
+import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,12 +46,19 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.common.TrackSelectionParameters;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.AspectRatioFrameLayout;
 
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
@@ -69,6 +81,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** Native CineWave app. The embedded Python process supplies catalogue and stream APIs only. */
+@UnstableApi
 public class MainActivity extends Activity {
     private static final String APP_URL = "http://127.0.0.1:8787/";
     private static final int BG = Color.rgb(8, 10, 15);
@@ -106,8 +119,33 @@ public class MainActivity extends Activity {
     private Runnable downloadPoll;
     private Runnable searchUpdate;
     private Runnable cataloguePoll;
+    private Runnable episodePoll;
+    private Runnable episodeRefreshCheck;
+    private Runnable playerProgressUpdate;
     private String discoveryState = "idle";
     private String discoveryError = "";
+    private String episodeDiscoveryState = "idle";
+    private TextView episodeStatus;
+    private TextView playbackTime;
+    private TextView playbackDuration;
+    private TextView playerPlayButton;
+    private SeekBar playbackSeek;
+    private FrameLayout playerStage;
+    private Runnable playerHideControls;
+    private JSONObject playingEpisode;
+    private boolean playerControlsVisible = true;
+    private boolean fullscreen = false;
+    private boolean userSeeking = false;
+    private long lastPlayerTap = 0L;
+    private long lastPlaybackSaveAt = 0L;
+    private float playbackSpeed = 1f;
+    private boolean repeatCurrent = false;
+    private float gestureStartX;
+    private float gestureStartY;
+    private float gestureInitialBrightness = -1f;
+    private int gestureInitialVolume;
+    private boolean gestureAdjusting = false;
+    private boolean gestureBrightness = false;
     private String pendingExportUrl = "";
     private String pendingExportTitle = "";
 
@@ -242,6 +280,8 @@ public class MainActivity extends Activity {
     }
 
     private void showHome() {
+        if (episodePoll != null) main.removeCallbacks(episodePoll);
+        if (episodeRefreshCheck != null) main.removeCallbacks(episodeRefreshCheck);
         currentSeries = null;
         currentSeriesId = "";
         currentSeriesTitle = "";
@@ -389,6 +429,8 @@ public class MainActivity extends Activity {
     }
 
     private void openSeries(JSONObject series) {
+        if (episodePoll != null) main.removeCallbacks(episodePoll);
+        if (episodeRefreshCheck != null) main.removeCallbacks(episodeRefreshCheck);
         currentSeries = series;
         currentSeriesId = series.optString("id", "");
         currentSeriesTitle = series.optString("title", "Untitled");
@@ -446,7 +488,7 @@ public class MainActivity extends Activity {
         LinearLayout episodeHead = row();
         TextView episodesTitle = text("Episodes and videos", 19, TEXT, true);
         episodeHead.addView(episodesTitle, new LinearLayout.LayoutParams(0, -2, 1));
-        Button refresh = button("Refresh", false);
+        Button refresh = button("Find new episodes", false);
         refresh.setOnClickListener(v -> loadEpisodes(true));
         episodeHead.addView(refresh);
         LinearLayout.LayoutParams episodeHeadParams = new LinearLayout.LayoutParams(-1, -2);
@@ -454,6 +496,8 @@ public class MainActivity extends Activity {
         detail.addView(episodeHead, episodeHeadParams);
         episodeList = new LinearLayout(this);
         episodeList.setOrientation(LinearLayout.VERTICAL);
+        episodeStatus = text("", 12, MUTED, false);
+        episodeList.addView(episodeStatus);
         detail.addView(episodeList);
         content.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
         scroll.addView(detail);
@@ -466,20 +510,59 @@ public class MainActivity extends Activity {
         api(path, result -> {
             episodes = result.optJSONArray("episodes");
             if (episodes == null) episodes = new JSONArray();
+            JSONObject discovery = result.optJSONObject("discovery");
+            if (discovery != null) episodeDiscoveryState = discovery.optString("state", "idle");
             renderEpisodes(refresh);
+            scheduleEpisodePoll();
+            if (!"running".equals(episodeDiscoveryState)) scheduleEpisodeRefreshCheck();
         }, error -> showToast("Episodes unavailable: " + error));
+    }
+
+    private void scheduleEpisodePoll() {
+        if (episodePoll != null) main.removeCallbacks(episodePoll);
+        if (!"running".equals(episodeDiscoveryState)) return;
+        episodePoll = () -> api("api/episodes?series=" + enc(currentSeriesId), result -> {
+            JSONArray updated = result.optJSONArray("episodes");
+            JSONObject discovery = result.optJSONObject("discovery");
+            if (discovery != null) episodeDiscoveryState = discovery.optString("state", "idle");
+            if (updated != null && !updated.toString().equals(episodes.toString())) episodes = updated;
+            renderEpisodes(false);
+            scheduleEpisodePoll();
+            if (!"running".equals(episodeDiscoveryState)) scheduleEpisodeRefreshCheck();
+        }, error -> {
+            episodePoll = () -> loadEpisodes(false);
+            main.postDelayed(episodePoll, 6000);
+        });
+        main.postDelayed(episodePoll, 2500);
+    }
+
+    private void scheduleEpisodeRefreshCheck() {
+        if (episodeRefreshCheck != null) main.removeCallbacks(episodeRefreshCheck);
+        if (currentSeriesId.isEmpty()) return;
+        episodeRefreshCheck = () -> loadEpisodes(false);
+        main.postDelayed(episodeRefreshCheck, 5 * 60 * 1000L);
     }
 
     private void renderEpisodes(boolean refresh) {
         if (episodeList == null) return;
         episodeList.removeAllViews();
-        if (refresh) showToast("Episode catalogue refreshed");
+        if (episodeStatus != null) episodeList.addView(episodeStatus);
+        if (episodeStatus != null) {
+            episodeStatus.setText("running".equals(episodeDiscoveryState)
+                ? "Checking ARY for newly released episodes…"
+                : "error".equals(episodeDiscoveryState)
+                    ? "Couldn’t refresh the episode guide. Tap Find new episodes to retry."
+                    : "completed".equals(episodeDiscoveryState)
+                        ? "Episode guide current · " + episodes.length() + " episodes"
+                        : "");
+        }
+        if (refresh && "completed".equals(episodeDiscoveryState)) showToast("Episode guide updated");
         if (episodes.length() == 0) {
             TextView empty = text("No episodes are listed for this title yet.", 14, MUTED, false);
             episodeList.addView(empty);
             return;
         }
-        for (int i = 0; i < episodes.length(); i++) {
+        for (int i = episodes.length() - 1; i >= 0; i--) {
             JSONObject episode = episodes.optJSONObject(i);
             if (episode == null) continue;
             episodeList.addView(episodeCard(episode));
@@ -522,10 +605,15 @@ public class MainActivity extends Activity {
         summary.addView(summaryText, new LinearLayout.LayoutParams(0, -2, 1));
         card.addView(summary);
         LinearLayout actions = row();
-        Button play = button("▶  Play", true);
-        play.setOnClickListener(v -> playEpisode(episode));
-        Button download = button("↓  Download", false);
-        download.setOnClickListener(v -> startDownload(episode, download));
+        boolean officialOnly = episode.optBoolean("official_only") && episode.optString("stream").isEmpty();
+        Button play = button(officialOnly ? "↗  Watch on ARY" : "▶  Play", true);
+        play.setOnClickListener(v -> {
+            if (officialOnly) openOfficialEpisode(episode);
+            else playEpisode(episode);
+        });
+        Button download = button(officialOnly ? "Official page only" : "↓  Download", false);
+        download.setEnabled(!officialOnly);
+        if (!officialOnly) download.setOnClickListener(v -> startDownload(episode, download));
         LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(44), 1);
         actionParams.setMargins(0, dp(12), dp(8), 0);
         actions.addView(play, actionParams);
@@ -534,6 +622,13 @@ public class MainActivity extends Activity {
         actions.addView(download, downloadParams);
         card.addView(actions);
         return card;
+    }
+
+    private void openOfficialEpisode(JSONObject episode) {
+        String url = episode.optString("official_url", "");
+        if (url.isEmpty()) { showToast("The official episode page is unavailable."); return; }
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (Exception error) { showToast("No browser is available to open this episode."); }
     }
 
     private void playEpisode(JSONObject episode) {
@@ -555,6 +650,9 @@ public class MainActivity extends Activity {
 
     private void startNativePlayer(String source, JSONObject episode) {
         releasePlayer();
+        playingEpisode = episode;
+        playerControlsVisible = true;
+        fullscreen = false;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         java.util.Map<String, String> streamHeaders = new java.util.HashMap<>();
         streamHeaders.put("Referer", "https://aryplus.tv/");
@@ -566,45 +664,415 @@ public class MainActivity extends Activity {
             .setMediaSourceFactory(new DefaultMediaSourceFactory(http))
             .build();
         player.setAudioAttributes(AudioAttributes.DEFAULT, true);
+        player.setPlaybackSpeed(playbackSpeed);
+        player.setRepeatMode(repeatCurrent ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
         playerView = new PlayerView(this);
         playerView.setPlayer(player);
-        playerView.setUseController(true);
+        playerView.setUseController(false);
         playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS);
         playerView.setBackgroundColor(Color.BLACK);
         playerView.setContentDescription("Video player");
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         player.addListener(new Player.Listener() {
             @Override public void onPlayerError(PlaybackException error) {
                 showToast("Playback failed: " + error.getMessage());
             }
             @Override public void onIsPlayingChanged(boolean isPlaying) {
+                if (playerPlayButton != null) playerPlayButton.setText(isPlaying ? "Ⅱ" : "▶");
                 updatePictureInPictureParams(isPlaying);
             }
+            @Override public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_ENDED) {
+                    clearSavedPlaybackPosition();
+                    playNextEpisode();
+                }
+            }
         });
-        player.setMediaItem(MediaItem.fromUri(Uri.parse(source)));
+        long resumeAt = savedPlaybackPosition(episode);
+        player.setMediaItem(MediaItem.fromUri(Uri.parse(source)), resumeAt);
         player.prepare();
         player.play();
+        if (resumeAt > 5000) showToast("Resuming at " + formatPlayerTime(resumeAt));
         root.removeAllViews();
         FrameLayout stage = new FrameLayout(this);
+        playerStage = stage;
         stage.setBackgroundColor(Color.BLACK);
         stage.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
+        playerView.setOnTouchListener(new View.OnTouchListener() {
+            @Override public boolean onTouch(View view, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    gestureStartX = event.getX();
+                    gestureStartY = event.getY();
+                    gestureInitialBrightness = getWindow().getAttributes().screenBrightness;
+                    if (gestureInitialBrightness < 0) gestureInitialBrightness = .5f;
+                    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+                    gestureInitialVolume = audio == null ? 0 : audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    gestureAdjusting = false;
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    float deltaY = event.getY() - gestureStartY;
+                    if (!gestureAdjusting && Math.abs(deltaY) > dp(22) && Math.abs(deltaY) > Math.abs(event.getX() - gestureStartX)) {
+                        gestureAdjusting = true;
+                        gestureBrightness = gestureStartX < view.getWidth() / 2f;
+                    }
+                    if (gestureAdjusting) {
+                        float change = -deltaY / Math.max(1f, view.getHeight());
+                        if (gestureBrightness) {
+                            float value = Math.max(.03f, Math.min(1f, gestureInitialBrightness + change));
+                            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+                            attributes.screenBrightness = value;
+                            getWindow().setAttributes(attributes);
+                        } else {
+                            AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+                            if (audio != null) {
+                                int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                                int value = Math.max(0, Math.min(maximum, gestureInitialVolume + Math.round(change * maximum * 2f)));
+                                audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0);
+                            }
+                        }
+                    }
+                    return true;
+                }
+                if (event.getAction() != MotionEvent.ACTION_UP) return true;
+                if (gestureAdjusting) {
+                    gestureAdjusting = false;
+                    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+                    if (gestureBrightness) showToast("Brightness " + Math.round(getWindow().getAttributes().screenBrightness * 100) + "%");
+                    else if (audio != null) showToast("Volume " + audio.getStreamVolume(AudioManager.STREAM_MUSIC) + "/" + audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                    return true;
+                }
+                long now = System.currentTimeMillis();
+                if (now - lastPlayerTap < android.view.ViewConfiguration.getDoubleTapTimeout()) {
+                    long delta = event.getX() < view.getWidth() / 2f ? -10000L : 10000L;
+                    player.seekTo(Math.max(0, player.getCurrentPosition() + delta));
+                    showPlayerControls();
+                    lastPlayerTap = 0L;
+                    return true;
+                }
+                lastPlayerTap = now;
+                main.postDelayed(() -> {
+                    if (lastPlayerTap == now) togglePlayerControls();
+                }, android.view.ViewConfiguration.getDoubleTapTimeout() + 20L);
+                return true;
+            }
+        });
+        buildPlayerControls(stage, episode);
+        root.addView(stage, new FrameLayout.LayoutParams(-1, -1));
+        startPlayerProgressUpdates();
+        schedulePlayerControlsHide();
+    }
+
+    private void buildPlayerControls(FrameLayout stage, JSONObject episode) {
+        LinearLayout top = row();
+        top.setPadding(dp(10), dp(8), dp(10), dp(8));
+        top.setBackground(rounded(Color.argb(190, 10, 12, 18), 16, 0));
         Button back = button("‹  Episodes", false);
-        FrameLayout.LayoutParams backParams = new FrameLayout.LayoutParams(-2, dp(44), Gravity.TOP | Gravity.START);
-        backParams.setMargins(dp(12), dp(12), 0, 0);
-        stage.addView(back, backParams);
         back.setOnClickListener(v -> { releasePlayer(); showSeriesDetails(); renderEpisodes(false); });
+        TextView title = text(episode.optString("title", "Now playing"), 13, TEXT, true);
+        title.setMaxLines(1);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(back);
+        top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        Button lock = button("Lock", false);
+        lock.setOnClickListener(v -> {
+            boolean locked = "Unlock".equals(lock.getText().toString());
+            lock.setText(locked ? "Lock" : "Unlock");
+            if (locked) showPlayerControls(); else hidePlayerControls();
+        });
+        top.addView(lock);
         Button pip = button("▣", false);
         pip.setContentDescription("Picture in picture");
-        FrameLayout.LayoutParams pipParams = new FrameLayout.LayoutParams(dp(48), dp(44), Gravity.TOP | Gravity.END);
-        pipParams.setMargins(0, dp(12), dp(12), 0);
-        stage.addView(pip, pipParams);
         pip.setOnClickListener(v -> enterPip());
-        root.addView(stage, new FrameLayout.LayoutParams(-1, -1));
-        TextView episodeTitle = text(episode.optString("title", "Now playing"), 13, TEXT, true);
-        episodeTitle.setMaxLines(1);
-        episodeTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(-1, dp(42), Gravity.BOTTOM);
-        titleParams.setMargins(dp(16), 0, dp(16), dp(10));
-        stage.addView(episodeTitle, titleParams);
+        top.addView(pip);
+        Button full = button("⛶", false);
+        full.setContentDescription("Toggle fullscreen and landscape");
+        full.setOnClickListener(v -> toggleFullscreen());
+        top.addView(full);
+        FrameLayout.LayoutParams topParams = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        topParams.setMargins(dp(10), dp(16), dp(10), 0);
+        stage.addView(top, topParams);
+
+        LinearLayout center = row();
+        center.setGravity(Gravity.CENTER);
+        Button backTen = button("−10", false);
+        backTen.setOnClickListener(v -> seekBy(-10000));
+        playerPlayButton = text("Ⅱ", 28, TEXT, true);
+        playerPlayButton.setGravity(Gravity.CENTER);
+        playerPlayButton.setBackground(rounded(Color.argb(210, 30, 34, 46), 28, Color.argb(100, 255, 255, 255)));
+        playerPlayButton.setOnClickListener(v -> {
+            if (player == null) return;
+            if (player.isPlaying()) player.pause(); else player.play();
+            showPlayerControls();
+        });
+        Button forwardTen = button("+10", false);
+        forwardTen.setOnClickListener(v -> seekBy(10000));
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(dp(64), dp(64));
+        playParams.setMargins(dp(24), 0, dp(24), 0);
+        center.addView(backTen, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        center.addView(playerPlayButton, playParams);
+        center.addView(forwardTen, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        stage.addView(center, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
+
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.VERTICAL);
+        bottom.setPadding(dp(14), dp(10), dp(14), dp(12));
+        bottom.setBackground(rounded(Color.argb(205, 10, 12, 18), 16, 0));
+        LinearLayout seekRow = row();
+        playbackTime = text("00:00", 11, TEXT, false);
+        playbackDuration = text("00:00", 11, TEXT, false);
+        playbackSeek = new SeekBar(this);
+        playbackSeek.setMax(1000);
+        playbackSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && player != null && player.getDuration() > 0) {
+                    long target = player.getDuration() * progress / 1000L;
+                    playbackTime.setText(formatPlayerTime(target));
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) { userSeeking = true; }
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                if (player != null && player.getDuration() > 0) player.seekTo(player.getDuration() * seekBar.getProgress() / 1000L);
+                userSeeking = false;
+                schedulePlayerControlsHide();
+            }
+        });
+        seekRow.addView(playbackTime);
+        seekRow.addView(playbackSeek, new LinearLayout.LayoutParams(0, dp(38), 1));
+        seekRow.addView(playbackDuration);
+        bottom.addView(seekRow);
+        HorizontalScrollView toolScroller = new HorizontalScrollView(this);
+        toolScroller.setHorizontalScrollBarEnabled(false);
+        LinearLayout tools = row();
+        Button speed = button(String.format(Locale.ROOT, "%.2g×", playbackSpeed), false);
+        speed.setOnClickListener(v -> showSpeedMenu(speed));
+        Button audio = button("Audio", false);
+        audio.setOnClickListener(v -> showTrackMenu(audio, C.TRACK_TYPE_AUDIO));
+        Button subtitles = button("Subtitles", false);
+        subtitles.setOnClickListener(v -> showTrackMenu(subtitles, C.TRACK_TYPE_TEXT));
+        Button quality = button("Quality", false);
+        quality.setOnClickListener(v -> showTrackMenu(quality, C.TRACK_TYPE_VIDEO));
+        Button fit = button("Fit", false);
+        fit.setOnClickListener(v -> cycleResizeMode(fit));
+        Button next = button("Next ▶", false);
+        next.setOnClickListener(v -> playNextEpisode());
+        Button repeat = button(repeatCurrent ? "Repeat on" : "Repeat off", false);
+        repeat.setOnClickListener(v -> {
+            repeatCurrent = !repeatCurrent;
+            if (player != null) player.setRepeatMode(repeatCurrent ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
+            repeat.setText(repeatCurrent ? "Repeat on" : "Repeat off");
+            showPlayerControls();
+        });
+        for (Button action : new Button[]{speed, audio, subtitles, quality, fit, repeat, next}) {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-2, dp(38));
+            params.setMargins(0, dp(4), dp(7), 0);
+            tools.addView(action, params);
+        }
+        toolScroller.addView(tools);
+        bottom.addView(toolScroller);
+        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        bottomParams.setMargins(dp(10), 0, dp(10), dp(14));
+        stage.addView(bottom, bottomParams);
+    }
+
+    private void showSpeedMenu(View anchor) {
+        PopupMenu menu = new PopupMenu(this, anchor);
+        float[] speeds = {.5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f};
+        for (int i = 0; i < speeds.length; i++) menu.getMenu().add(0, i, i, String.format(Locale.ROOT, "%.2g×", speeds[i]));
+        menu.setOnMenuItemClickListener(item -> {
+            playbackSpeed = speeds[item.getItemId()];
+            if (player != null) player.setPlaybackSpeed(playbackSpeed);
+            anchor.setContentDescription("Playback speed " + playbackSpeed + " times");
+            ((Button) anchor).setText(String.format(Locale.ROOT, "%.2g×", playbackSpeed));
+            showPlayerControls();
+            return true;
+        });
+        menu.show();
+    }
+
+    private void showTrackMenu(View anchor, int trackType) {
+        if (player == null) return;
+        PopupMenu menu = new PopupMenu(this, anchor);
+        if (trackType == C.TRACK_TYPE_VIDEO) menu.getMenu().add(0, -1, 0, "Auto quality");
+        if (trackType == C.TRACK_TYPE_TEXT) menu.getMenu().add(0, -2, 0, "Subtitles off");
+        List<Tracks.Group> groups = player.getCurrentTracks().getGroups();
+        int menuId = 1;
+        for (Tracks.Group group : groups) {
+            if (group.getType() != trackType) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (!group.isTrackSupported(i)) continue;
+                Format format = group.getTrackFormat(i);
+                String label;
+                if (trackType == C.TRACK_TYPE_VIDEO) {
+                    label = format.height > 0 ? format.height + "p" : (format.width > 0 ? format.width + " px" : "Video track");
+                    if (format.bitrate > 0) label += " · " + Math.round(format.bitrate / 1000f) + " kbps";
+                } else {
+                    label = format.label != null ? format.label : format.language != null ? format.language : (trackType == C.TRACK_TYPE_AUDIO ? "Audio track" : "Subtitle track");
+                    if (trackType == C.TRACK_TYPE_AUDIO && format.channelCount > 0) label += " · " + format.channelCount + " ch";
+                }
+                final int selectedId = menuId++;
+                final Tracks.Group selectedGroup = group;
+                final int trackIndex = i;
+                menu.getMenu().add(0, selectedId, selectedId, label + (group.isTrackSelected(i) ? " ✓" : ""));
+                menu.getMenu().findItem(selectedId).setOnMenuItemClickListener(item -> {
+                    TrackSelectionParameters.Builder builder = player.getTrackSelectionParameters().buildUpon()
+                        .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, false)
+                        .setOverrideForType(new TrackSelectionOverride(selectedGroup.getMediaTrackGroup(), trackIndex));
+                    player.setTrackSelectionParameters(builder.build());
+                    showPlayerControls();
+                    return true;
+                });
+            }
+        }
+        if (menu.getMenu().size() == 0) menu.getMenu().add("No alternate tracks in this video");
+        menu.setOnMenuItemClickListener(item -> {
+            if (trackType == C.TRACK_TYPE_VIDEO && item.getItemId() == -1) {
+                player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon()
+                    .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, false).build());
+                showPlayerControls();
+                return true;
+            }
+            if (trackType == C.TRACK_TYPE_TEXT && item.getItemId() == -2) {
+                player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon()
+                    .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, true).build());
+                showPlayerControls();
+                return true;
+            }
+            return false;
+        });
+        menu.show();
+    }
+
+    private void cycleResizeMode(Button button) {
+        if (playerView == null) return;
+        int mode = playerView.getResizeMode();
+        int next = mode == AspectRatioFrameLayout.RESIZE_MODE_FIT ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            : mode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? AspectRatioFrameLayout.RESIZE_MODE_FILL
+            : AspectRatioFrameLayout.RESIZE_MODE_FIT;
+        playerView.setResizeMode(next);
+        button.setText(next == AspectRatioFrameLayout.RESIZE_MODE_FIT ? "Fit" : next == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? "Zoom" : "Stretch");
+        showPlayerControls();
+    }
+
+    private void toggleFullscreen() {
+        fullscreen = !fullscreen;
+        if (fullscreen) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            if (Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) {
+                getWindow().getInsetsController().hide(android.view.WindowInsets.Type.systemBars());
+                getWindow().getInsetsController().setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            } else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        } else {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            if (Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) getWindow().getInsetsController().show(android.view.WindowInsets.Type.systemBars());
+            else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        }
+        showPlayerControls();
+    }
+
+    private void seekBy(long delta) {
+        if (player != null) player.seekTo(Math.max(0, player.getCurrentPosition() + delta));
+        showPlayerControls();
+    }
+
+    private void playNextEpisode() {
+        if (playingEpisode == null || currentSeriesId.isEmpty()) return;
+        int currentNumber = playingEpisode.optInt("number", -1);
+        JSONObject nextEpisode = null;
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject candidate = episodes.optJSONObject(i);
+            if (candidate == null || candidate.optBoolean("official_only")) continue;
+            int number = candidate.optInt("number", -1);
+            if (number > currentNumber && (nextEpisode == null || number < nextEpisode.optInt("number", Integer.MAX_VALUE))) nextEpisode = candidate;
+        }
+        if (nextEpisode != null) playEpisode(nextEpisode);
+        else showToast("You’re at the latest playable episode.");
+    }
+
+    private void startPlayerProgressUpdates() {
+        if (playerProgressUpdate != null) main.removeCallbacks(playerProgressUpdate);
+        playerProgressUpdate = new Runnable() {
+            @Override public void run() {
+                if (player == null || playbackSeek == null) return;
+                long duration = player.getDuration();
+                long position = player.getCurrentPosition();
+                if (System.currentTimeMillis() - lastPlaybackSaveAt > 2000) {
+                    savePlaybackPosition();
+                    lastPlaybackSaveAt = System.currentTimeMillis();
+                }
+                if (duration > 0) {
+                    if (!userSeeking) playbackSeek.setProgress((int) Math.min(1000, position * 1000L / duration));
+                    playbackTime.setText(formatPlayerTime(position));
+                    playbackDuration.setText(formatPlayerTime(duration));
+                } else {
+                    playbackTime.setText(formatPlayerTime(position));
+                    playbackDuration.setText("LIVE");
+                }
+                main.postDelayed(this, 500);
+            }
+        };
+        main.post(playerProgressUpdate);
+    }
+
+    private String formatPlayerTime(long millis) {
+        long seconds = Math.max(0, millis / 1000);
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long remaining = seconds % 60;
+        return hours > 0 ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, remaining)
+            : String.format(Locale.ROOT, "%02d:%02d", minutes, remaining);
+    }
+
+    private String playbackPreferenceKey(JSONObject episode) {
+        return "position:" + currentSeriesId + ":" + episode.optString("id", "");
+    }
+
+    private long savedPlaybackPosition(JSONObject episode) {
+        return getSharedPreferences("cinewave-playback", MODE_PRIVATE).getLong(playbackPreferenceKey(episode), 0L);
+    }
+
+    private void savePlaybackPosition() {
+        if (player == null || playingEpisode == null) return;
+        String key = playbackPreferenceKey(playingEpisode);
+        long position = player.getCurrentPosition();
+        long duration = player.getDuration();
+        android.content.SharedPreferences.Editor editor = getSharedPreferences("cinewave-playback", MODE_PRIVATE).edit();
+        if (duration > 0 && position >= duration - 3000) editor.remove(key);
+        else if (position > 5000) editor.putLong(key, position);
+        else editor.remove(key);
+        editor.apply();
+    }
+
+    private void clearSavedPlaybackPosition() {
+        if (playingEpisode == null) return;
+        getSharedPreferences("cinewave-playback", MODE_PRIVATE).edit()
+            .remove(playbackPreferenceKey(playingEpisode)).apply();
+    }
+
+    @Override protected void onPause() {
+        savePlaybackPosition();
+        super.onPause();
+    }
+
+    private void togglePlayerControls() {
+        if (!playerControlsVisible) showPlayerControls(); else hidePlayerControls();
+    }
+
+    private void showPlayerControls() {
+        playerControlsVisible = true;
+        if (playerStage != null) for (int i = 1; i < playerStage.getChildCount(); i++) playerStage.getChildAt(i).setVisibility(View.VISIBLE);
+        schedulePlayerControlsHide();
+    }
+
+    private void hidePlayerControls() {
+        playerControlsVisible = false;
+        if (playerStage != null) for (int i = 1; i < playerStage.getChildCount(); i++) playerStage.getChildAt(i).setVisibility(View.GONE);
+    }
+
+    private void schedulePlayerControlsHide() {
+        if (playerHideControls != null) main.removeCallbacks(playerHideControls);
+        playerHideControls = this::hidePlayerControls;
+        main.postDelayed(playerHideControls, 5500);
     }
 
     private void startDownload(JSONObject episode, Button button) {
@@ -807,7 +1275,8 @@ public class MainActivity extends Activity {
 
     @Override public void onPictureInPictureModeChanged(boolean inPip, Configuration config) {
         super.onPictureInPictureModeChanged(inPip, config);
-        if (playerView != null) playerView.setUseController(!inPip);
+        if (playerView != null) playerView.setUseController(false);
+        if (inPip) hidePlayerControls(); else if (player != null) showPlayerControls();
     }
 
     @Override public void onBackPressed() {
@@ -817,8 +1286,26 @@ public class MainActivity extends Activity {
     }
 
     private void releasePlayer() {
+        savePlaybackPosition();
+        if (playerProgressUpdate != null) main.removeCallbacks(playerProgressUpdate);
+        if (playerHideControls != null) main.removeCallbacks(playerHideControls);
         if (player != null) { player.release(); player = null; }
         playerView = null;
+        playerStage = null;
+        playbackSeek = null;
+        playbackTime = null;
+        playbackDuration = null;
+        playerPlayButton = null;
+        playingEpisode = null;
+        if (fullscreen) {
+            fullscreen = false;
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            if (Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) getWindow().getInsetsController().show(android.view.WindowInsets.Type.systemBars());
+            else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        }
+        WindowManager.LayoutParams windowAttributes = getWindow().getAttributes();
+        windowAttributes.screenBrightness = -1f;
+        getWindow().setAttributes(windowAttributes);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
@@ -894,6 +1381,9 @@ public class MainActivity extends Activity {
         if (downloadPoll != null) main.removeCallbacks(downloadPoll);
         if (searchUpdate != null) main.removeCallbacks(searchUpdate);
         if (cataloguePoll != null) main.removeCallbacks(cataloguePoll);
+        if (episodePoll != null) main.removeCallbacks(episodePoll);
+        if (episodeRefreshCheck != null) main.removeCallbacks(episodeRefreshCheck);
+        if (playerProgressUpdate != null) main.removeCallbacks(playerProgressUpdate);
         releasePlayer();
         backendExecutor.shutdownNow();
         apiExecutor.shutdownNow();
