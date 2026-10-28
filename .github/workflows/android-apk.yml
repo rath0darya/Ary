@@ -1,4 +1,4 @@
-name: Build CineWave Android APK
+name: Build native CineWave Android APK
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: cinewave-apk-${{ github.ref }}
@@ -43,7 +43,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
-      - name: Package current Python backend and website
+      - name: Package Python API and catalogue data for native app
         run: sh android/sync_sources.sh
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace -p android :app:assembleDebug
@@ -53,44 +53,3 @@ jobs:
           name: cinewave-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
-
-      - name: Publish APK to GitHub Release and update Download instructions
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK_PATH"
-          mkdir -p Download
-          cp "$APK_PATH" Download/CineWave.apk
-
-          # GitHub rejects individual Git repository files over 100 MB.
-          # Keep the APK as a Release asset; commit only a small download pointer.
-          cat > Download/README.md <<'EOF'
-          # CineWave Android APK
-
-          Download the latest APK from the [latest GitHub Release](https://github.com/rath0darya/Ary/releases/latest/download/CineWave.apk).
-
-          The APK is published as a Release asset rather than committed to Git, because GitHub blocks repository files larger than 100 MB.
-          EOF
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git switch -C main origin/main
-          mkdir -p Download
-          cp "$APK_PATH" Download/CineWave.apk
-          # Do not git-add the APK: the current APK exceeds GitHub's 100 MB Git file limit.
-          cp Download/README.md /tmp/CineWave-Download-README.md
-          cp /tmp/CineWave-Download-README.md Download/README.md
-          git add Download/README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "Update CineWave APK download link"
-            git push origin main
-          fi
-
-          TAG="cinewave-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
-          gh release create "$TAG" "$APK_PATH" \
-            --title "CineWave ${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})" \
-            --notes "Standalone Android APK built from source commit ${GITHUB_SHA}. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Download the APK directly from this release." \
-            --latest
