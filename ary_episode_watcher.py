@@ -1072,6 +1072,30 @@ def _resolve_vod_stream(episode_id: str) -> str | None:
         return None
 
 
+def _vod_episode_id(item: dict[str, Any], fallback: str = "") -> str:
+    """Use the VOD media ID embedded in ARY's official watch route when present."""
+    for key in ("watchUrl", "watch_url", "videoUrl", "video_url", "url"):
+        value = item.get(key)
+        if not isinstance(value, str):
+            continue
+        match = re.search(r"/video/v2/\d+/([A-Fa-f0-9]{24})(?:/|$)", value)
+        if match:
+            return match.group(1)
+    return fallback
+
+
+def _official_watch_url(item: dict[str, Any], fallback: str) -> str:
+    """Keep only official ARY playback routes from catalogue metadata."""
+    value = item.get("watchUrl") or item.get("watch_url")
+    if not isinstance(value, str):
+        return fallback
+    url = urljoin("https://aryplus.tv/", html.unescape(value).strip())
+    parsed = urlparse(url)
+    if parsed.scheme == "https" and parsed.hostname in {"aryplus.tv", "www.aryplus.tv"}:
+        return url
+    return fallback
+
+
 def _is_episode_auto_check_window(now: datetime | None = None) -> bool:
     """The drama publishes on Friday/Saturday; check VOD after 21:15 IST."""
     ist = ZoneInfo("Asia/Kolkata")
@@ -1277,18 +1301,19 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
                     _media_url(raw.get("source"), "https://vod.aryzap.com/"),
                 ) if _is_vod_storage_url(candidate)), None)
+                vod_id = _vod_episode_id(raw, episode_id)
                 if not stream_url:
-                    stream_url = _resolve_vod_stream(episode_id)
+                    stream_url = _resolve_vod_stream(vod_id)
                 episodes.append({
                     "id": episode_id,
-                    "api_id": episode_id,
+                    "api_id": vod_id,
                     "number": episode_number,
                     "title": normalized.get("title") or f"Dar-E-Nijaat Episode {episode_number}",
                     "date": normalized.get("date"),
                     "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                     "stream": stream_url,
-                    "official_url": f"https://arydigital.tv/drama/dar-e-nijaat/episode-{episode_number}/",
-                    "official_only": False,
+                    "official_url": _official_watch_url(raw, f"https://arydigital.tv/drama/dar-e-nijaat/episode-{episode_number}/"),
+                    "official_only": not bool(stream_url),
                     "description": "Discovered from the live ARY+ episode API.",
                     "next_episode_id": raw.get("nextEpId") or raw.get("nextEpisodeId"),
                     "raw": raw,
@@ -1332,16 +1357,17 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     _media_url(raw.get("streamUrl"), "https://vod.aryzap.com/"),
                     _media_url(raw.get("videoUrl"), "https://vod.aryzap.com/"),
                 ) if _is_vod_storage_url(candidate)), None)
+                vod_id = _vod_episode_id(raw, raw_id)
                 episode_id = f"arydigital-{raw_id}"
                 episodes.append({
                     "id": episode_id,
-                    "api_id": raw_id,
+                    "api_id": vod_id,
                     "number": number,
                     "title": normalized.get("title") or f"Dar-E-Nijaat Episode {number}",
                     "date": normalized.get("date"),
                     "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                     "stream": stream_url,
-                    "official_url": episode_url,
+                    "official_url": _official_watch_url(raw, episode_url),
                     "official_only": not bool(stream_url),
                     "description": "Latest episode listed on the official ARY Digital episode guide.",
                     "next_episode_id": None,
@@ -1402,17 +1428,18 @@ def catalogue(series_id: str, force: bool = False) -> list[dict[str, Any]]:
                     _media_url(raw.get("video_url"), "https://vod.aryzap.com/"),
                     _media_url(raw.get("source"), "https://vod.aryzap.com/"),
                 ) if _is_vod_storage_url(candidate)), None)
+                vod_id = _vod_episode_id(raw, episode_id)
                 if not stream_url:
-                    stream_url = _resolve_vod_stream(episode_id)
+                    stream_url = _resolve_vod_stream(vod_id)
                 additions.append({
                     "id": episode_id,
-                    "api_id": episode_id,
+                    "api_id": vod_id,
                     "number": episode_number,
                     "title": f"Dar-E-Nijaat Episode {episode_number}",
                     "date": normalized.get("date"),
                     "thumbnail": normalized.get("thumbnail") or "https://backend.arydigital.tv/uploads/Dar_e_Nijat_Poster_jpg_d5142f9c36.jpeg",
                     "stream": stream_url,
-                    "official_url": episode_url,
+                    "official_url": _official_watch_url(raw, episode_url),
                     "official_only": not bool(stream_url),
                     "description": "Discovered from the official ARY episode page.",
                     "next_episode_id": None,

@@ -23,6 +23,7 @@ import android.os.Looper;
 import android.util.Rational;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -131,11 +132,13 @@ public class MainActivity extends Activity {
     private TextView playbackDuration;
     private TextView playerPlayButton;
     private Button playerPipButton;
+    private Button playerLockButton;
     private SeekBar playbackSeek;
     private FrameLayout playerStage;
     private Runnable playerHideControls;
     private JSONObject playingEpisode;
     private boolean playerControlsVisible = true;
+    private boolean playerControlsLocked = false;
     private boolean fullscreen = false;
     private boolean userSeeking = false;
     private long lastPlayerTap = 0L;
@@ -147,7 +150,10 @@ public class MainActivity extends Activity {
     private float gestureInitialBrightness = -1f;
     private int gestureInitialVolume;
     private boolean gestureAdjusting = false;
+    private boolean gestureSeeking = false;
+    private long gestureSeekDelta = 0L;
     private boolean gestureBrightness = false;
+    private TextView playerGestureFeedback;
     private String pendingExportUrl = "";
     private String pendingExportTitle = "";
 
@@ -682,6 +688,7 @@ public class MainActivity extends Activity {
         releasePlayer();
         playingEpisode = episode;
         playerControlsVisible = true;
+        playerControlsLocked = false;
         fullscreen = false;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         java.util.Map<String, String> streamHeaders = new java.util.HashMap<>();
@@ -738,8 +745,21 @@ public class MainActivity extends Activity {
         playerView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             if (isVideoPlaying()) updatePictureInPictureParams(true);
         });
+        final float[] videoZoom = {1f};
+        ScaleGestureDetector zoomGesture = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override public boolean onScale(ScaleGestureDetector detector) {
+                videoZoom[0] = Math.max(1f, Math.min(2.5f, videoZoom[0] * detector.getScaleFactor()));
+                playerView.setScaleX(videoZoom[0]);
+                playerView.setScaleY(videoZoom[0]);
+                showGestureFeedback("Zoom  " + Math.round(videoZoom[0] * 100) + "%");
+                return true;
+            }
+        });
         playerView.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View view, MotionEvent event) {
+                zoomGesture.onTouchEvent(event);
+                if (playerControlsLocked) return true;
+                if (event.getPointerCount() > 1) return true;
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
                     gestureStartX = event.getX();
                     gestureStartY = event.getY();
@@ -748,10 +768,22 @@ public class MainActivity extends Activity {
                     AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
                     gestureInitialVolume = audio == null ? 0 : audio.getStreamVolume(AudioManager.STREAM_MUSIC);
                     gestureAdjusting = false;
+                    gestureSeeking = false;
+                    gestureSeekDelta = 0L;
                     return true;
                 }
                 if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    float deltaX = event.getX() - gestureStartX;
                     float deltaY = event.getY() - gestureStartY;
+                    if (!gestureAdjusting && !gestureSeeking && Math.abs(deltaX) > dp(24) && Math.abs(deltaX) > Math.abs(deltaY)) {
+                        gestureSeeking = true;
+                    }
+                    if (gestureSeeking) {
+                        gestureSeekDelta = Math.round(deltaX / Math.max(1f, view.getWidth()) * 120000L);
+                        long seconds = gestureSeekDelta / 1000L;
+                        showGestureFeedback((seconds >= 0 ? "+" : "−") + Math.abs(seconds) + " sec");
+                        return true;
+                    }
                     if (!gestureAdjusting && Math.abs(deltaY) > dp(22) && Math.abs(deltaY) > Math.abs(event.getX() - gestureStartX)) {
                         gestureAdjusting = true;
                         gestureBrightness = gestureStartX < view.getWidth() / 2f;
@@ -771,21 +803,38 @@ public class MainActivity extends Activity {
                                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0);
                             }
                         }
+                        showGestureFeedback(gestureBrightness
+                            ? "☼  " + Math.round(getWindow().getAttributes().screenBrightness * 100) + "%"
+                            : "◖  " + volumePercent());
                     }
                     return true;
                 }
                 if (event.getAction() != MotionEvent.ACTION_UP) return true;
+                if (gestureSeeking) {
+                    if (player != null) player.seekTo(Math.max(0L, player.getCurrentPosition() + gestureSeekDelta));
+                    gestureSeeking = false;
+                    showPlayerControls();
+                    return true;
+                }
                 if (gestureAdjusting) {
                     gestureAdjusting = false;
-                    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
-                    if (gestureBrightness) showToast("Brightness " + Math.round(getWindow().getAttributes().screenBrightness * 100) + "%");
-                    else if (audio != null) showToast("Volume " + audio.getStreamVolume(AudioManager.STREAM_MUSIC) + "/" + audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                    hideGestureFeedback();
                     return true;
                 }
                 long now = System.currentTimeMillis();
                 if (now - lastPlayerTap < android.view.ViewConfiguration.getDoubleTapTimeout()) {
-                    long delta = event.getX() < view.getWidth() / 2f ? -10000L : 10000L;
-                    player.seekTo(Math.max(0, player.getCurrentPosition() + delta));
+                    float x = event.getX();
+                    float width = Math.max(1, view.getWidth());
+                    if (x < width / 3f) {
+                        player.seekTo(Math.max(0, player.getCurrentPosition() - 10000L));
+                        showGestureFeedback("↶  10 seconds");
+                    } else if (x > width * 2f / 3f) {
+                        player.seekTo(Math.max(0, player.getCurrentPosition() + 10000L));
+                        showGestureFeedback("↷  10 seconds");
+                    } else {
+                        if (player.isPlaying()) player.pause(); else player.play();
+                        showGestureFeedback(player.isPlaying() ? "▶" : "Ⅱ");
+                    }
                     showPlayerControls();
                     lastPlayerTap = 0L;
                     return true;
@@ -807,27 +856,20 @@ public class MainActivity extends Activity {
     private void buildPlayerControls(FrameLayout stage, JSONObject episode) {
         LinearLayout top = row();
         top.setPadding(dp(10), dp(8), dp(10), dp(8));
-        top.setBackground(rounded(Color.argb(190, 10, 12, 18), 16, 0));
-        Button back = button("‹  Episodes", false);
+        top.setBackground(verticalScrim(true));
+        Button back = playerIcon("‹", "Back to episodes");
         back.setOnClickListener(v -> { releasePlayer(); showSeriesDetails(); renderEpisodes(false); });
         TextView title = text(episode.optString("title", "Now playing"), 13, TEXT, true);
         title.setMaxLines(1);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(back);
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        Button lock = button("Lock", false);
-        lock.setOnClickListener(v -> {
-            boolean locked = "Unlock".equals(lock.getText().toString());
-            lock.setText(locked ? "Lock" : "Unlock");
-            if (locked) showPlayerControls(); else hidePlayerControls();
-        });
-        top.addView(lock);
-        playerPipButton = button("▣", false);
+        playerPipButton = playerIcon("▣", "Picture in picture");
         playerPipButton.setContentDescription("Picture in picture while video is playing");
         playerPipButton.setVisibility(isVideoPlaying() ? View.VISIBLE : View.GONE);
         playerPipButton.setOnClickListener(v -> enterPip());
         top.addView(playerPipButton);
-        Button full = button("⛶", false);
+        Button full = playerIcon("⛶", "Toggle fullscreen");
         full.setContentDescription("Toggle fullscreen and landscape");
         full.setOnClickListener(v -> toggleFullscreen());
         top.addView(full);
@@ -835,19 +877,31 @@ public class MainActivity extends Activity {
         topParams.setMargins(dp(10), dp(16), dp(10), 0);
         stage.addView(top, topParams);
 
+        playerLockButton = playerIcon("◉", "Lock player controls");
+        playerLockButton.setOnClickListener(v -> {
+            playerControlsLocked = !playerControlsLocked;
+            playerLockButton.setText(playerControlsLocked ? "⊘" : "◉");
+            playerLockButton.setContentDescription(playerControlsLocked ? "Unlock player controls" : "Lock player controls");
+            if (playerControlsLocked) hidePlayerControls(); else showPlayerControls();
+        });
+        FrameLayout.LayoutParams lockParams = new FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        lockParams.setMargins(0, 0, dp(12), 0);
+        stage.addView(playerLockButton, lockParams);
+
         LinearLayout center = row();
         center.setGravity(Gravity.CENTER);
-        Button backTen = button("−10", false);
+        Button backTen = playerIcon("↶", "Rewind 10 seconds");
         backTen.setOnClickListener(v -> seekBy(-10000));
         playerPlayButton = text("Ⅱ", 28, TEXT, true);
         playerPlayButton.setGravity(Gravity.CENTER);
-        playerPlayButton.setBackground(rounded(Color.argb(210, 30, 34, 46), 28, Color.argb(100, 255, 255, 255)));
+        playerPlayButton.setBackground(rounded(Color.argb(78, 255, 255, 255), 36, Color.argb(100, 255, 255, 255)));
+        playerPlayButton.setContentDescription("Play or pause");
         playerPlayButton.setOnClickListener(v -> {
             if (player == null) return;
             if (player.isPlaying()) player.pause(); else player.play();
             showPlayerControls();
         });
-        Button forwardTen = button("+10", false);
+        Button forwardTen = playerIcon("↷", "Forward 10 seconds");
         forwardTen.setOnClickListener(v -> seekBy(10000));
         LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(dp(64), dp(64));
         playParams.setMargins(dp(24), 0, dp(24), 0);
@@ -859,7 +913,7 @@ public class MainActivity extends Activity {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.setPadding(dp(14), dp(10), dp(14), dp(12));
-        bottom.setBackground(rounded(Color.argb(205, 10, 12, 18), 16, 0));
+        bottom.setBackground(verticalScrim(false));
         LinearLayout seekRow = row();
         playbackTime = text("00:00", 11, TEXT, false);
         playbackDuration = text("00:00", 11, TEXT, false);
@@ -886,23 +940,23 @@ public class MainActivity extends Activity {
         HorizontalScrollView toolScroller = new HorizontalScrollView(this);
         toolScroller.setHorizontalScrollBarEnabled(false);
         LinearLayout tools = row();
-        Button speed = button(String.format(Locale.ROOT, "%.2g×", playbackSpeed), false);
+        Button speed = playerIcon(String.format(Locale.ROOT, "%.2g×", playbackSpeed), "Playback speed");
         speed.setOnClickListener(v -> showSpeedMenu(speed));
-        Button audio = button("Audio", false);
+        Button audio = playerIcon("♫", "Audio track");
         audio.setOnClickListener(v -> showTrackMenu(audio, C.TRACK_TYPE_AUDIO));
-        Button subtitles = button("Subtitles", false);
+        Button subtitles = playerIcon("CC", "Subtitles");
         subtitles.setOnClickListener(v -> showTrackMenu(subtitles, C.TRACK_TYPE_TEXT));
-        Button quality = button("Quality", false);
+        Button quality = playerIcon("⚙", "Video quality");
         quality.setOnClickListener(v -> showTrackMenu(quality, C.TRACK_TYPE_VIDEO));
-        Button fit = button("Fit", false);
+        Button fit = playerIcon("▣", "Fit, zoom or stretch");
         fit.setOnClickListener(v -> cycleResizeMode(fit));
-        Button next = button("Next ▶", false);
+        Button next = playerIcon("»", "Next episode");
         next.setOnClickListener(v -> playNextEpisode());
-        Button repeat = button(repeatCurrent ? "Repeat on" : "Repeat off", false);
+        Button repeat = playerIcon(repeatCurrent ? "↻" : "↻̸", "Repeat episode");
         repeat.setOnClickListener(v -> {
             repeatCurrent = !repeatCurrent;
             if (player != null) player.setRepeatMode(repeatCurrent ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
-            repeat.setText(repeatCurrent ? "Repeat on" : "Repeat off");
+            repeat.setText(repeatCurrent ? "↻" : "↻̸");
             showPlayerControls();
         });
         for (Button action : new Button[]{speed, audio, subtitles, quality, fit, repeat, next}) {
@@ -915,6 +969,53 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
         bottomParams.setMargins(dp(10), 0, dp(10), dp(14));
         stage.addView(bottom, bottomParams);
+
+        playerGestureFeedback = text("", 17, TEXT, true);
+        playerGestureFeedback.setGravity(Gravity.CENTER);
+        playerGestureFeedback.setPadding(dp(18), dp(12), dp(18), dp(12));
+        playerGestureFeedback.setBackground(rounded(Color.argb(145, 8, 10, 15), 28, Color.argb(45, 255, 255, 255)));
+        playerGestureFeedback.setVisibility(View.GONE);
+        FrameLayout.LayoutParams feedbackParams = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+        stage.addView(playerGestureFeedback, feedbackParams);
+    }
+
+    private Button playerIcon(String glyph, String description) {
+        Button control = button(glyph, false);
+        control.setAllCaps(false);
+        control.setMinWidth(dp(42));
+        control.setMinimumWidth(dp(42));
+        control.setMinHeight(dp(42));
+        control.setMinimumHeight(dp(42));
+        control.setPadding(dp(8), 0, dp(8), 0);
+        control.setTextSize(glyph.length() > 2 ? 13 : 19);
+        control.setContentDescription(description);
+        control.setBackground(rounded(Color.argb(42, 255, 255, 255), 24, Color.argb(48, 255, 255, 255)));
+        return control;
+    }
+
+    private String volumePercent() {
+        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audio == null || audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC) == 0) return "0%";
+        return Math.round(audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) + "%";
+    }
+
+    private void showGestureFeedback(String message) {
+        if (playerGestureFeedback == null) return;
+        playerGestureFeedback.setText(message);
+        playerGestureFeedback.setVisibility(View.VISIBLE);
+        main.postDelayed(() -> { if (playerGestureFeedback != null) playerGestureFeedback.setVisibility(View.GONE); }, 850L);
+    }
+
+    private void hideGestureFeedback() {
+        if (playerGestureFeedback != null) playerGestureFeedback.setVisibility(View.GONE);
+    }
+
+    private GradientDrawable verticalScrim(boolean fromTop) {
+        GradientDrawable drawable = new GradientDrawable(
+            fromTop ? GradientDrawable.Orientation.TOP_BOTTOM : GradientDrawable.Orientation.BOTTOM_TOP,
+            new int[]{Color.argb(195, 4, 6, 10), Color.argb(95, 4, 6, 10), Color.TRANSPARENT});
+        drawable.setCornerRadius(dp(2));
+        return drawable;
     }
 
     private void showSpeedMenu(View anchor) {
@@ -992,7 +1093,9 @@ public class MainActivity extends Activity {
             : mode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? AspectRatioFrameLayout.RESIZE_MODE_FILL
             : AspectRatioFrameLayout.RESIZE_MODE_FIT;
         playerView.setResizeMode(next);
-        button.setText(next == AspectRatioFrameLayout.RESIZE_MODE_FIT ? "Fit" : next == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? "Zoom" : "Stretch");
+        String modeName = next == AspectRatioFrameLayout.RESIZE_MODE_FIT ? "Fit" : next == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? "Zoom" : "Stretch";
+        button.setText(next == AspectRatioFrameLayout.RESIZE_MODE_FIT ? "▣" : next == AspectRatioFrameLayout.RESIZE_MODE_ZOOM ? "⌕" : "↔");
+        button.setContentDescription("Video sizing: " + modeName);
         showPlayerControls();
     }
 
@@ -1108,7 +1211,10 @@ public class MainActivity extends Activity {
 
     private void hidePlayerControls() {
         playerControlsVisible = false;
-        if (playerStage != null) for (int i = 1; i < playerStage.getChildCount(); i++) playerStage.getChildAt(i).setVisibility(View.GONE);
+        if (playerStage != null) for (int i = 1; i < playerStage.getChildCount(); i++) {
+            View child = playerStage.getChildAt(i);
+            child.setVisibility(playerControlsLocked && child == playerLockButton ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void schedulePlayerControlsHide() {
